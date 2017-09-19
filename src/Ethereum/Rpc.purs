@@ -7,12 +7,11 @@ import Data.Argonaut.Core (jsonEmptyObject)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.?))
 import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
 import Data.Either (either)
-import Data.List (List(..))
 import Network.HTTP.Affjax (AJAX, URL, post)
 import Network.HTTP.StatusCode (StatusCode(..))
 
 newtype Request = Request { method :: String
-                          , params :: List String
+                          , params :: Array String
                           }
 
 instance encodeRequest :: EncodeJson Request where
@@ -31,14 +30,14 @@ newtype Response = Response { result :: String }
 instance decodeResponse :: DecodeJson Response where
   decodeJson json = do
     obj <- decodeJson json
-    res <- obj .? "result"
+    res <- obj .? "result" -- TODO handle JSONRPC errors
     pure $ Response { result : res }
 
 
 call :: ∀ e. URL -> Request -> Aff (ajax :: AJAX | e) Response
 call url req = do
   {status: (StatusCode statusCode), response: body} <- post url (encodeJson req)
-  when (statusCode /= 200) do -- TODO handle JSONRPC errors
+  when (statusCode /= 200) do
     throwError $ error $ "JSON RPC call "
                        <> (show req)
                        <> " failed with HTTP status code = "
@@ -46,4 +45,4 @@ call url req = do
   either (throwError <<< error) pure $ decodeJson body
 
 method :: String -> Request
-method m = Request { method: m, params: Nil }
+method m = Request { method: m, params: [] }
