@@ -7,7 +7,8 @@ module Ethereum.Api.Web3 (
   ) where
 
 import Prelude
-import Control.Monad.Aff (Aff)
+
+import Control.Monad.Aff (Aff, error, throwError)
 import Control.Monad.Free (Free, foldFree, liftF)
 import Ethereum.Rpc as Rpc
 import Network.HTTP.Affjax (AJAX, URL)
@@ -29,9 +30,10 @@ keccak256 s = liftF $ Keccak256 s id
 runEth :: ∀ e a. URL -> Eth a -> Aff (ajax :: AJAX | e) a
 runEth url = foldFree (fromEthF url)
 
-result :: ∀ a. (String -> a) -> Rpc.Response -> a
-result f (Rpc.Response r) = f r.result
+fromResp :: ∀ e a. (String -> a) -> Rpc.Response -> Aff (ajax :: AJAX | e) a
+fromResp f (Rpc.Result result) = pure $ f result
+fromResp f (Rpc.Error code message) = throwError $ error $ "JSON RPC error (" <> (show code) <> "): " <> message
 
 fromEthF :: ∀ e. URL -> EthF ~> Aff (ajax :: AJAX | e)
-fromEthF url (Web3ClientVersion f) = Rpc.call url (Rpc.method "web3_clientVersion") <#> result f
-fromEthF url (Keccak256 s f) = Rpc.call url (Rpc.Request { method: "web3_sha3", params: [s] }) <#> result f
+fromEthF url (Web3ClientVersion f) = Rpc.call url (Rpc.method "web3_clientVersion") >>= fromResp f
+fromEthF url (Keccak256 s f) = Rpc.call url (Rpc.Request { method: "web3_sha3", params: [s] }) >>= fromResp f

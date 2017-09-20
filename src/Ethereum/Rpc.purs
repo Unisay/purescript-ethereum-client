@@ -1,12 +1,12 @@
 module Ethereum.Rpc where
 
 import Prelude
-
 import Control.Monad.Aff (Aff, error, throwError)
 import Data.Argonaut.Core (jsonEmptyObject)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.?))
+import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.?), (.??))
 import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
-import Data.Either (either)
+import Data.Either (Either(..), either)
+import Data.Maybe (maybe)
 import Network.HTTP.Affjax (AJAX, URL, post)
 import Network.HTTP.StatusCode (StatusCode(..))
 
@@ -25,14 +25,19 @@ instance encodeRequest :: EncodeJson Request where
 instance showRequest :: Show Request where
   show = show <<< encodeJson
 
-newtype Response = Response { result :: String }
+data Response = Result String
+              | Error Int String
 
 instance decodeResponse :: DecodeJson Response where
   decodeJson json = do
     obj <- decodeJson json
-    res <- obj .? "result" -- TODO handle JSONRPC errors
-    pure $ Response { result : res }
-
+    res <- obj .?? "result"
+    maybe (decodeError obj) (Right <<< Result) res
+      where decodeError obj = do
+              err <- obj .? "error"
+              code <- err .? "code"
+              message <- err .? "message"
+              pure $ Error code message
 
 call :: ∀ e. URL -> Request -> Aff (ajax :: AJAX | e) Response
 call url req = do
