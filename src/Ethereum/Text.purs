@@ -1,20 +1,29 @@
-module Ethereum.Text (fromHex, toHex, fromHexQuantity) where
+module Ethereum.Text (
+    fromHex
+  , toHex
+  , fromHexQuantity
+  , fromHexQuantity'
+  ) where
 
 import Prelude
-
+import Data.BigInt (BigInt, fromBase, toNumber)
 import Data.ByteString (ByteString, fromString, toString)
-import Data.Int (fromStringAs, hexadecimal)
+import Data.Int (fromNumber)
 import Data.Maybe (Maybe, fromMaybe)
-import Data.String (Pattern(..), stripPrefix, toUpper)
+import Data.String (Pattern(..), stripPrefix)
 import Node.Encoding (Encoding(..))
 
 toHex :: ByteString -> String
-toHex bs = "0x" <> toUpper (toString bs Hex)
+toHex bs = "0x" <> toString bs Hex
 
 fromHex :: String -> ByteString
 fromHex s = let noPrefix = fromMaybe s $ stripPrefix (Pattern "0x") s
             in fromString noPrefix Hex
 
-fromHexQuantity :: String -> Maybe Int
+fromHexQuantity :: String -> Maybe BigInt
 fromHexQuantity s = let noPrefix = fromMaybe s $ stripPrefix (Pattern "0x") s
-                    in fromStringAs hexadecimal noPrefix
+                    in fromBase 16 noPrefix
+
+-- | Loses precision for numbers outside the range [-9007199254740992, 9007199254740992].
+fromHexQuantity' :: String -> Maybe Int
+fromHexQuantity' s = (fromHexQuantity s) <#> toNumber >>= fromNumber
