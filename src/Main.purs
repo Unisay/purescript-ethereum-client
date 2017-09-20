@@ -16,14 +16,16 @@ info = do
   network <- E.netVersion
   listening <- E.netListening
   peers <- E.netPeerCount
-  version <- E.clientVersion
+  clientVersion <- E.clientVersion
   keccak <- E.keccak256 $ toUTF8 "hello"
+  protocolVersion <- E.ethProtocolVersion
   pure $ """
-  Network:             """ <> (show network) <> """
-  Is listening:        """ <> (show listening) <> """
-  Number of Peers:     """ <> (show peers) <> """
-  Client version:      """ <> version <> """
-  Keccak 256 (hello):  """ <> (toHex keccak) <> """
+  Network:                    """ <> (show network) <> """
+  Is listening:               """ <> (show listening) <> """
+  Number of Peers:            """ <> (show peers) <> """
+  Client version:             """ <> clientVersion <> """
+  Keccak 256 (hello):         """ <> (toHex keccak) <> """
+  Ethereum protocol version:  """ <> protocolVersion <> """
   """
 
 main :: ∀ e. Eff ( ajax :: AJAX, console :: CONSOLE | e) Unit

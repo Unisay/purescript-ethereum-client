@@ -8,6 +8,7 @@ module Ethereum.Api (
   , netPeerCount
   , clientVersion
   , keccak256
+  , ethProtocolVersion
   ) where
 
 import Prelude
@@ -25,6 +26,7 @@ data EthF more = Web3ClientVersion (String -> more)
                | NetVersion (Network -> more)
                | NetListening (Boolean -> more)
                | NetPeerCount (Int -> more)
+               | EthProtocolVersion (String -> more)
 
 type Eth a = Free EthF a
 
@@ -71,6 +73,11 @@ netListening = liftF $ NetListening id
 netPeerCount :: Eth Int
 netPeerCount = liftF $ NetPeerCount id
 
+-- | Current ethereum protocol version
+ethProtocolVersion :: Eth String
+ethProtocolVersion = liftF $ EthProtocolVersion id
+
+
 -- | Runs Eth monad returning Aff
 runEth :: ∀ e a. URL -> Eth a -> Aff (ajax :: AJAX | e) a
 runEth url = foldFree (fromEthF url)
@@ -99,3 +106,6 @@ fromEthF url (NetListening f) = do
 fromEthF url (NetPeerCount f) = do
   r <- Rpc.call url (Rpc.method "net_peerCount")
   fromResp (pure <<< f <=< parseQuantity) r
+fromEthF url (EthProtocolVersion f) = do
+  r <- Rpc.call url (Rpc.method "eth_protocolVersion")
+  fromResp (pure <<< f) r
