@@ -7,18 +7,24 @@ import Control.Monad.Aff.Console (log)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE)
 import Data.ByteString (toUTF8)
-import Ethereum.Api.Web3 (Eth, clientVersion, keccak256, runEth)
-import Ethereum.Api.Text (toHex)
+import Ethereum.Api as E
+import Ethereum.Text (toHex)
 import Network.HTTP.Affjax (AJAX)
 
-info :: Eth String
+info :: E.Eth String
 info = do
-  version <- clientVersion
-  keccak <- keccak256 $ toUTF8 "hello"
+  network <- E.netVersion
+  listening <- E.netListening
+  peers <- E.netPeerCount
+  version <- E.clientVersion
+  keccak <- E.keccak256 $ toUTF8 "hello"
   pure $ """
+  Network:             """ <> (show network) <> """
+  Is listening:        """ <> (show listening) <> """
+  Number of Peers:     """ <> (show peers) <> """
   Client version:      """ <> version <> """
   Keccak 256 (hello):  """ <> (toHex keccak) <> """
   """
 
 main :: ∀ e. Eff ( ajax :: AJAX, console :: CONSOLE | e) Unit
-main = launchAff_ $ runEth "http://127.0.0.1:8545" info >>= log
+main = launchAff_ $ E.runEth "http://127.0.0.1:8545" info >>= log

@@ -25,10 +25,10 @@ instance encodeRequest :: EncodeJson Request where
 instance showRequest :: Show Request where
   show = show <<< encodeJson
 
-data Response = Result String
-              | Error Int String
+data Response a = Result a
+                | Error Int String -- TODO: Error codes
 
-instance decodeResponse :: DecodeJson Response where
+instance decodeResponse :: DecodeJson r => DecodeJson (Response r) where
   decodeJson json = do
     obj <- decodeJson json
     res <- obj .?? "result"
@@ -39,7 +39,7 @@ instance decodeResponse :: DecodeJson Response where
               message <- err .? "message"
               pure $ Error code message
 
-call :: ∀ e. URL -> Request -> Aff (ajax :: AJAX | e) Response
+call :: ∀ r e. DecodeJson r => URL -> Request -> Aff (ajax :: AJAX | e) (Response r)
 call url req = do
   {status: (StatusCode statusCode), response: body} <- post url (encodeJson req)
   when (statusCode /= 200) do
