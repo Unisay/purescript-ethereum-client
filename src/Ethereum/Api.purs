@@ -54,14 +54,6 @@ clientVersion = liftF $ Web3ClientVersion id
 keccak256 :: ByteString -> Eth ByteString
 keccak256 s = liftF $ Keccak256 s id
 
-parseNetwork :: String -> Network
-parseNetwork "1" = Mainnet
-parseNetwork "2" = Morden
-parseNetwork "3" = Ropsten
-parseNetwork "4" = Rinkeby
-parseNetwork "42" = Kovan
-parseNetwork s = UnknownNet s
-
 -- | Current network
 netVersion :: Eth Network
 netVersion = liftF $ NetVersion id
@@ -146,6 +138,14 @@ parseBigInt = maybe (err "Failed to parse hex string as big int") pure <<< fromH
 
 parseSmallInt :: ∀ e. String -> Aff e Int
 parseSmallInt = maybe (err "Failed to parse hex string as int") pure <<< fromHexQuantity'
+
+parseNetwork :: String -> Network
+parseNetwork "1" = Mainnet
+parseNetwork "2" = Morden
+parseNetwork "3" = Ropsten
+parseNetwork "4" = Rinkeby
+parseNetwork "42" = Kovan
+parseNetwork s = UnknownNet s
 
 newtype SyncStatusResponse = SyncStatusResponse (Maybe SyncStatus)
 
