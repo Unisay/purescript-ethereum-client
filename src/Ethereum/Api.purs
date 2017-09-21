@@ -2,7 +2,7 @@ module Ethereum.Api (
     EthF
   , Eth
   , module Ethereum.Type
-  , runHttp
+  , runTransport
   , netVersion
   , netListening
   , netPeerCount
@@ -18,6 +18,7 @@ module Ethereum.Api (
   ) where
 
 import Prelude
+
 import Control.Monad.Aff (Aff, error, throwError)
 import Control.Monad.Free (Free, foldFree, liftF)
 import Data.Argonaut.Core (Json, isBoolean)
@@ -28,7 +29,6 @@ import Data.Maybe (Maybe(Just, Nothing))
 import Ethereum.Rpc as Rpc
 import Ethereum.Text (fromHex, fromHexQuantity', toHex)
 import Ethereum.Type (Address, Network(..), SyncStatus, Wei(Wei))
-import Network.HTTP.Affjax (AJAX, URL)
 
 type Decoder r = Json -> Either String r
 
@@ -96,22 +96,22 @@ ethAccounts :: Eth (Array Address)
 ethAccounts = liftF $ EthAccounts decodeJson id
 
 -- | Runs Eth monad returning Aff
-runHttp :: ∀ e a. URL -> Eth a -> Aff (ajax :: AJAX | e) a
-runHttp = foldFree <<< nt
+runTransport :: ∀ c e a. Rpc.Transport c e => c -> Eth a -> Aff e a
+runTransport = foldFree <<< nt
   where
-    nt :: ∀ fx. URL -> EthF ~> Aff (ajax :: AJAX | fx)
-    nt url (Web3ClientVersion d f) = Rpc.call0 url "web3_clientVersion" >>= handle d f
-    nt url (Keccak256 s d f) = Rpc.call url "web3_sha3" [toHex s] >>= handle d f
-    nt url (NetVersion d f) = Rpc.call0 url "net_version" >>= handle d f
-    nt url (NetListening d f) = Rpc.call0 url "net_listening" >>= handle d f
-    nt url (NetPeerCount d f) = Rpc.call0 url "net_peerCount" >>= handle d f
-    nt url (EthProtocolVersion d f) = Rpc.call0 url "eth_protocolVersion" >>= handle d f
-    nt url (EthSyncing d f) = Rpc.call0 url "eth_syncing" >>= handle d f
-    nt url (EthCoinbase d f) = Rpc.call0 url "eth_coinbase" >>= handle d f
-    nt url (EthMining d f) = Rpc.call0 url "eth_mining" >>= handle d f
-    nt url (EthHashrate d f) = Rpc.call0 url "eth_hashrate" >>= handle d f
-    nt url (EthGasPrice d f) = Rpc.call0 url "eth_gasPrice" >>= handle d f
-    nt url (EthAccounts d f) = Rpc.call0 url "eth_accounts" >>= handle d f
+    nt :: Rpc.Transport c e => c -> EthF ~> Aff e
+    nt cfg (Web3ClientVersion d f) = Rpc.call0 cfg "web3_clientVersion" >>= handle d f
+    nt cfg (Keccak256 s d f) = Rpc.callParams cfg "web3_sha3" [toHex s] >>= handle d f
+    nt cfg (NetVersion d f) = Rpc.call0 cfg "net_version" >>= handle d f
+    nt cfg (NetListening d f) = Rpc.call0 cfg "net_listening" >>= handle d f
+    nt cfg (NetPeerCount d f) = Rpc.call0 cfg "net_peerCount" >>= handle d f
+    nt cfg (EthProtocolVersion d f) = Rpc.call0 cfg "eth_protocolVersion" >>= handle d f
+    nt cfg (EthSyncing d f) = Rpc.call0 cfg "eth_syncing" >>= handle d f
+    nt cfg (EthCoinbase d f) = Rpc.call0 cfg "eth_coinbase" >>= handle d f
+    nt cfg (EthMining d f) = Rpc.call0 cfg "eth_mining" >>= handle d f
+    nt cfg (EthHashrate d f) = Rpc.call0 cfg "eth_hashrate" >>= handle d f
+    nt cfg (EthGasPrice d f) = Rpc.call0 cfg "eth_gasPrice" >>= handle d f
+    nt cfg (EthAccounts d f) = Rpc.call0 cfg "eth_accounts" >>= handle d f
 
     unpackRpcResponse :: ∀ fx. Rpc.Response Json -> Aff fx Json
     unpackRpcResponse (Rpc.Result json) = pure json

@@ -1,14 +1,35 @@
 module Ethereum.Rpc where
 
 import Prelude
+import Data.Maybe (maybe)
 import Control.Monad.Aff (Aff, error, throwError)
-import Data.Argonaut.Core (jsonEmptyObject)
+import Data.Argonaut.Core (Json, jsonEmptyObject)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.?), (.??))
 import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
 import Data.Either (Either(..), either)
-import Data.Maybe (maybe)
 import Network.HTTP.Affjax (AJAX, URL, post)
 import Network.HTTP.StatusCode (StatusCode(..))
+
+newtype AffjaxTransport = AffjaxTransport URL
+
+class Transport c e | c -> e where
+  call :: c -> Request -> Aff e (Response Json)
+
+callParams :: ∀ c e. Transport c e => c -> Method -> Params -> Aff e (Response Json)
+callParams c m p = call c $ Request { method: m, params: p }
+
+call0 :: ∀ c e. Transport c e => c -> Method -> Aff e (Response Json)
+call0 c m = call c $ Request { method: m, params: [] }
+
+instance affjaxTransport :: Transport AffjaxTransport (ajax :: AJAX | e) where
+  call (AffjaxTransport url) req = do
+    { status: (StatusCode statusCode), response: body } <- post url $ encodeJson req
+    when (statusCode /= 200) do
+      throwError $ error $ "JSON RPC call "
+        <> (show req)
+        <> " failed with HTTP status code = "
+        <> show statusCode
+    either (throwError <<< error) pure $ decodeJson body
 
 type Method = String
 type Params = Array String
@@ -41,17 +62,3 @@ instance decodeResponse :: DecodeJson r => DecodeJson (Response r) where
               code <- err .? "code"
               message <- err .? "message"
               pure $ Error code message
-
-call :: ∀ r e. DecodeJson r => URL -> Method -> Params -> Aff (ajax :: AJAX | e) (Response r)
-call url method params = do
-  let req = encodeJson $ Request { method, params }
-  { status: (StatusCode statusCode), response: body } <- post url req
-  when (statusCode /= 200) do
-    throwError $ error $ "JSON RPC call "
-                       <> (show req)
-                       <> " failed with HTTP status code = "
-                       <> show statusCode
-  either (throwError <<< error) pure $ decodeJson body
-
-call0 :: ∀ r e. DecodeJson r => URL -> Method -> Aff (ajax :: AJAX | e) (Response r)
-call0 u m = call u m []
