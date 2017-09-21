@@ -1,8 +1,8 @@
-module Ethereum.Api (
-    EthF
+module Ethereum.Api
+  ( EthF
   , Eth
   , module Ethereum.Type
-  , runTransport
+  , run
   , netVersion
   , netListening
   , netPeerCount
@@ -96,8 +96,8 @@ ethAccounts :: Eth (Array Address)
 ethAccounts = liftF $ EthAccounts decodeJson id
 
 -- | Runs Eth monad returning Aff
-runTransport :: ∀ c e a. Rpc.Transport c e => c -> Eth a -> Aff e a
-runTransport = foldFree <<< nt
+run :: ∀ c e a. Rpc.Transport c e => c -> Eth a -> Aff e a
+run = foldFree <<< nt
   where
     nt :: Rpc.Transport c e => c -> EthF ~> Aff e
     nt cfg (Web3ClientVersion d f) = Rpc.call0 cfg "web3_clientVersion" >>= handle d f

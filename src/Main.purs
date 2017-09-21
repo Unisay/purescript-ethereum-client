@@ -44,4 +44,4 @@ Accounts:                   """ <> (joinWith ", " $ show <$> accounts) <> """
 
 main :: ∀ e. Eff (ajax :: AJAX, console :: CONSOLE | e) Unit
 main = let transport = AffjaxTransport "http://127.0.0.1:8545"
-       in launchAff_ $ E.runTransport transport info >>= log
+       in launchAff_ $ E.run transport info >>= log
