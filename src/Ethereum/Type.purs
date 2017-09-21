@@ -47,6 +47,11 @@ instance showSyncStatus :: Show SyncStatus where
                       <> "currentBlock = '"  <> (show ss.currentBlock)  <> "', "
                       <> "highestBlock = '"  <> (show ss.highestBlock)  <> "' "
 
+newtype Quantity = Quantity Int
+
+instance decodeQuantity :: DecodeJson Quantity where
+  decodeJson json = Quantity <$> decodeJson json
+
 
 newtype Address = Address ByteString
 

@@ -2,11 +2,11 @@ module Ethereum.Api (
     EthF
   , Eth
   , module Ethereum.Type
-  , runEth
+  , runHttp
   , netVersion
   , netListening
   , netPeerCount
-  , clientVersion
+  , web3ClientVersion
   , keccak256
   , ethProtocolVersion
   , ethSyncing
@@ -18,126 +18,116 @@ module Ethereum.Api (
   ) where
 
 import Prelude
-
 import Control.Monad.Aff (Aff, error, throwError)
 import Control.Monad.Free (Free, foldFree, liftF)
-import Data.Argonaut.Core (isBoolean)
+import Data.Argonaut.Core (Json, isBoolean)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
-import Data.BigInt (BigInt)
 import Data.ByteString (ByteString)
-import Data.Maybe (Maybe(..), maybe)
+import Data.Either (Either, either, note)
+import Data.Maybe (Maybe(Just, Nothing))
 import Ethereum.Rpc as Rpc
-import Ethereum.Text (fromHex, fromHexQuantity, fromHexQuantity', toHex)
+import Ethereum.Text (fromHex, fromHexQuantity', toHex)
 import Ethereum.Type (Address, Network(..), SyncStatus, Wei(Wei))
 import Network.HTTP.Affjax (AJAX, URL)
 
-data EthF more = Web3ClientVersion (String -> more)
-               | Keccak256 ByteString (ByteString -> more)
-               | NetVersion (Network -> more)
-               | NetListening (Boolean -> more)
-               | NetPeerCount (Int -> more)
-               | EthProtocolVersion (String -> more)
-               | EthSyncing (Maybe SyncStatus -> more)
-               | EthCoinbase (Address -> more)
-               | EthMining (Boolean -> more)
-               | EthHashrate (Int -> more)
-               | EthGasPrice (Wei -> more)
-               | EthAccounts (Array Address -> more)
+type Decoder r = Json -> Either String r
+
+data EthF more = Web3ClientVersion (Decoder String) (String -> more)
+               | Keccak256 ByteString (Decoder ByteString) (ByteString -> more)
+               | NetVersion (Decoder Network) (Network -> more)
+               | NetListening (Decoder Boolean) (Boolean -> more)
+               | NetPeerCount (Decoder Int) (Int -> more)
+               | EthProtocolVersion (Decoder String) (String -> more)
+               | EthSyncing (Decoder (Maybe SyncStatus)) (Maybe SyncStatus -> more)
+               | EthCoinbase (Decoder Address) (Address -> more)
+               | EthMining (Decoder Boolean) (Boolean -> more)
+               | EthHashrate (Decoder Int) (Int -> more)
+               | EthGasPrice (Decoder Wei) (Wei -> more)
+               | EthAccounts (Decoder (Array Address)) (Array Address -> more)
 
 type Eth a = Free EthF a
 
 -- | Current client version
-clientVersion :: Eth String
-clientVersion = liftF $ Web3ClientVersion id
+web3ClientVersion :: Eth String
+web3ClientVersion = liftF $ Web3ClientVersion decodeJson id
 
 -- | Returns Keccak-256 (not the standardized SHA3-256) of the given data
 keccak256 :: ByteString -> Eth ByteString
-keccak256 s = liftF $ Keccak256 s id
+keccak256 s = liftF $ Keccak256 s (decodeJson >>> map fromHex) id
 
 -- | Current network
 netVersion :: Eth Network
-netVersion = liftF $ NetVersion id
+netVersion = liftF $ NetVersion (decodeJson >>> map parseNetwork) id
 
 -- | If client is actively listening for network connections
 netListening :: Eth Boolean
-netListening = liftF $ NetListening id
+netListening = liftF $ NetListening decodeJson id
 
 -- | Number of peers currently connected to the client
 netPeerCount :: Eth Int
-netPeerCount = liftF $ NetPeerCount id
+netPeerCount = liftF $ NetPeerCount (decodeJson >=> parseSmallInt) id
 
 -- | Current ethereum protocol version
 ethProtocolVersion :: Eth String
-ethProtocolVersion = liftF $ EthProtocolVersion id
+ethProtocolVersion = liftF $ EthProtocolVersion decodeJson id
 
 -- | Syncrhronization status
 ethSyncing :: Eth (Maybe SyncStatus)
-ethSyncing = liftF $ EthSyncing id
+ethSyncing = liftF $ EthSyncing (decodeJson >>> map \(SyncStatusResponse r) -> r) id
 
 -- | Client coinbase address
 ethCoinbase :: Eth Address
-ethCoinbase = liftF $ EthCoinbase id
+ethCoinbase = liftF $ EthCoinbase decodeJson id
 
 -- | If client is actively mining new blocks
 ethMining :: Eth Boolean
-ethMining = liftF $ EthMining id
+ethMining = liftF $ EthMining decodeJson id
 
 -- | Number of hashes per second that the node is mining with
 ethHashrate :: Eth Int
-ethHashrate = liftF $ EthHashrate id
+ethHashrate = liftF $ EthHashrate (decodeJson >=> parseSmallInt) id
 
 -- | Current price per gas in WEI
 ethGasPrice :: Eth Wei
-ethGasPrice = liftF $ EthGasPrice id
+ethGasPrice = liftF $ EthGasPrice decodeJson id
 
 -- | List of addresses owned by client
 ethAccounts :: Eth (Array Address)
-ethAccounts = liftF $ EthAccounts id
+ethAccounts = liftF $ EthAccounts decodeJson id
 
 -- | Runs Eth monad returning Aff
-runEth :: ∀ e a. URL -> Eth a -> Aff (ajax :: AJAX | e) a
-runEth url = foldFree (fromEthF url)
+runHttp :: ∀ e a. URL -> Eth a -> Aff (ajax :: AJAX | e) a
+runHttp = foldFree <<< nt
+  where
+    nt :: ∀ fx. URL -> EthF ~> Aff (ajax :: AJAX | fx)
+    nt url (Web3ClientVersion d f) = Rpc.call0 url "web3_clientVersion" >>= handle d f
+    nt url (Keccak256 s d f) = Rpc.call url "web3_sha3" [toHex s] >>= handle d f
+    nt url (NetVersion d f) = Rpc.call0 url "net_version" >>= handle d f
+    nt url (NetListening d f) = Rpc.call0 url "net_listening" >>= handle d f
+    nt url (NetPeerCount d f) = Rpc.call0 url "net_peerCount" >>= handle d f
+    nt url (EthProtocolVersion d f) = Rpc.call0 url "eth_protocolVersion" >>= handle d f
+    nt url (EthSyncing d f) = Rpc.call0 url "eth_syncing" >>= handle d f
+    nt url (EthCoinbase d f) = Rpc.call0 url "eth_coinbase" >>= handle d f
+    nt url (EthMining d f) = Rpc.call0 url "eth_mining" >>= handle d f
+    nt url (EthHashrate d f) = Rpc.call0 url "eth_hashrate" >>= handle d f
+    nt url (EthGasPrice d f) = Rpc.call0 url "eth_gasPrice" >>= handle d f
+    nt url (EthAccounts d f) = Rpc.call0 url "eth_accounts" >>= handle d f
 
-fromEthF :: ∀ e. URL -> EthF ~> Aff (ajax :: AJAX | e)
-fromEthF url (Web3ClientVersion f) =
-  Rpc.call url (Rpc.method "web3_clientVersion") >>= fromResp (pure <<< f)
-fromEthF url (Keccak256 s f) =
-  Rpc.call url (Rpc.Request { method: "web3_sha3", params: [toHex s] }) >>= fromResp (pure <<< f <<< fromHex)
-fromEthF url (NetVersion f) =
-  Rpc.call url (Rpc.method "net_version") >>= fromResp (pure <<< f <<< parseNetwork)
-fromEthF url (NetListening f) =
-  Rpc.call url (Rpc.method "net_listening") >>= fromResp (pure <<< f)
-fromEthF url (NetPeerCount f) = do
-  Rpc.call url (Rpc.method "net_peerCount") >>= fromResp (pure <<< f <=< parseSmallInt)
-fromEthF url (EthProtocolVersion f) = do
-  Rpc.call url (Rpc.method "eth_protocolVersion") >>= fromResp (pure <<< f)
-fromEthF url (EthSyncing f) =
-  Rpc.call url (Rpc.method "eth_syncing") >>= fromResp (pure <<< f <<< \(SyncStatusResponse r) -> r)
-fromEthF url (EthCoinbase f) =
-  Rpc.call url (Rpc.method "eth_coinbase") >>= fromResp (pure <<< f)
-fromEthF url (EthMining f) =
-  Rpc.call url (Rpc.method "eth_mining") >>= fromResp (pure <<< f)
-fromEthF url (EthHashrate f) =
-  Rpc.call url (Rpc.method "eth_hashrate") >>= fromResp (pure <<< f <=< parseSmallInt)
-fromEthF url (EthGasPrice f) =
-  Rpc.call url (Rpc.method "eth_gasPrice") >>= fromResp (pure <<< f)
-fromEthF url (EthAccounts f) =
-  Rpc.call url (Rpc.method "eth_accounts") >>= fromResp (pure <<< f)
+    unpackRpcResponse :: ∀ fx. Rpc.Response Json -> Aff fx Json
+    unpackRpcResponse (Rpc.Result json) = pure json
+    unpackRpcResponse (Rpc.Error code message) = err $ "JSON RPC error (" <> (show code) <> "): " <> message
 
+    decode :: ∀ fx r. Decoder r -> Json -> Aff fx r
+    decode decoder json = either err pure $ decoder json
 
+    handle :: ∀ r fx b. Decoder r -> (r -> b) -> Rpc.Response Json -> Aff fx b
+    handle decoder continue response = unpackRpcResponse response >>= decode decoder <#> continue
 
-err :: ∀ e a. String -> Aff e a
-err = throwError <<< error
+    err :: ∀ fx b. String -> Aff fx b
+    err = throwError <<< error
 
-fromResp :: ∀ r e a. (r -> Aff e a) -> Rpc.Response r -> Aff e a
-fromResp f (Rpc.Result r) = f r
-fromResp f (Rpc.Error code message) = err $ "JSON RPC error (" <> (show code) <> "): " <> message
-
-parseBigInt :: ∀ e. String -> Aff e BigInt
-parseBigInt = maybe (err "Failed to parse hex string as big int") pure <<< fromHexQuantity
-
-parseSmallInt :: ∀ e. String -> Aff e Int
-parseSmallInt = maybe (err "Failed to parse hex string as int") pure <<< fromHexQuantity'
+parseSmallInt :: String -> Either String Int
+parseSmallInt = note "Failed to parse hex string as int" <<< fromHexQuantity'
 
 parseNetwork :: String -> Network
 parseNetwork "1" = Mainnet

@@ -18,7 +18,7 @@ info = do
   network <- E.netVersion
   listening <- E.netListening
   peers <- E.netPeerCount
-  clientVersion <- E.clientVersion
+  clientVersion <- E.web3ClientVersion
   keccak <- E.keccak256 $ toUTF8 "hello"
   protocolVersion <- E.ethProtocolVersion
   syncStatus <- E.ethSyncing
@@ -43,4 +43,4 @@ info = do
   """
 
 main :: ∀ e. Eff (ajax :: AJAX, console :: CONSOLE | e) Unit
-main = launchAff_ $ E.runEth "http://127.0.0.1:8545" info >>= log
+main = launchAff_ $ E.runHttp "http://127.0.0.1:8545" info >>= log

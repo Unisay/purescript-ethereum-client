@@ -10,8 +10,11 @@ import Data.Maybe (maybe)
 import Network.HTTP.Affjax (AJAX, URL, post)
 import Network.HTTP.StatusCode (StatusCode(..))
 
-newtype Request = Request { method :: String
-                          , params :: Array String
+type Method = String
+type Params = Array String
+
+newtype Request = Request { method :: Method
+                          , params :: Params
                           }
 
 instance encodeRequest :: EncodeJson Request where
@@ -39,9 +42,10 @@ instance decodeResponse :: DecodeJson r => DecodeJson (Response r) where
               message <- err .? "message"
               pure $ Error code message
 
-call :: ∀ r e. DecodeJson r => URL -> Request -> Aff (ajax :: AJAX | e) (Response r)
-call url req = do
-  {status: (StatusCode statusCode), response: body} <- post url (encodeJson req)
+call :: ∀ r e. DecodeJson r => URL -> Method -> Params -> Aff (ajax :: AJAX | e) (Response r)
+call url method params = do
+  let req = encodeJson $ Request { method, params }
+  { status: (StatusCode statusCode), response: body } <- post url req
   when (statusCode /= 200) do
     throwError $ error $ "JSON RPC call "
                        <> (show req)
@@ -49,5 +53,5 @@ call url req = do
                        <> show statusCode
   either (throwError <<< error) pure $ decodeJson body
 
-method :: String -> Request
-method m = Request { method: m, params: [] }
+call0 :: ∀ r e. DecodeJson r => URL -> Method -> Aff (ajax :: AJAX | e) (Response r)
+call0 u m = call u m []
