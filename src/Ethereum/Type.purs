@@ -5,7 +5,7 @@ import Prelude
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.?))
 import Data.BigInt (BigInt, toString)
 import Data.ByteString (ByteString, isEmpty)
-import Data.Either (Either(..))
+import Data.Either (Either(..), note)
 import Data.Maybe (maybe)
 import Ethereum.Text (fromHex, fromHexQuantity, toHex)
 
@@ -26,20 +26,22 @@ instance showNetwork :: Show Network where
 
 
 newtype SyncStatus = SyncStatus {
-  startingBlock :: ByteString,
-  currentBlock  :: ByteString,
-  highestBlock  :: ByteString
+  startingBlock :: BigInt,
+  currentBlock  :: BigInt,
+  highestBlock  :: BigInt
 }
+
+derive instance eqSyncStatus :: Eq SyncStatus
 
 instance decodeSyncStatus :: DecodeJson SyncStatus where
   decodeJson json = do
     obj <- decodeJson json
-    startingBlock <- obj .? "startingBlock"
-    currentBlock <- obj .? "currentBlock"
-    highestBlock <- obj .? "highestBlock"
-    pure $ SyncStatus { startingBlock: fromHex startingBlock
-                      , currentBlock:  fromHex currentBlock
-                      , highestBlock:  fromHex highestBlock
+    startingBlock <- obj .? "startingBlock" >>= fromHexQuantity >>> note "Failed to decode startingBlock"
+    currentBlock <- obj .? "currentBlock" >>= fromHexQuantity >>> note "Failed to decode currentBlock"
+    highestBlock <- obj .? "highestBlock" >>= fromHexQuantity >>> note "Failed to decode highestBlock"
+    pure $ SyncStatus { startingBlock: startingBlock
+                      , currentBlock:  currentBlock
+                      , highestBlock:  highestBlock
                       }
 
 instance showSyncStatus :: Show SyncStatus where
