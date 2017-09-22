@@ -14,10 +14,11 @@ import Test.Unit.Assert (equal)
 spec :: ∀ e. TestSuite e
 spec = do
   suite "Text" do
-    test "toHex" $ "0x02cafebabe" `equal` toHex (BS.fromString "02cafebabe" Hex)
+    test "toHex" $
+      "0x02cafebabe" `equal` toHex (BS.fromString "02cafebabe" Hex)
     test "fromHex" $
-      let expected = (\s -> BS.fromString s Hex) <$> ["02cafebabe", "0x0", "0xe40b5"]
-      in expected `equal` (fromHex <$> ["0x02cafebabe", "0x0", "0xe40b5"])
+      let expected = (\s -> BS.fromString s Hex) <$> ["02cafebabe", "00", "0e40b5"]
+      in expected `equal` (fromHex <$> ["0x02cafebabe", "0x0", "e40b5"])
     test "fromHexQuantity" $
       let expected = Just [fromInt 1024, fromInt 1024, fromInt 0, fromInt 934069]
       in expected `equal` traverse fromHexQuantity ["0x400", "0x0400", "0x0", "0xe40b5"]

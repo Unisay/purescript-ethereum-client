@@ -8,9 +8,9 @@ module Ethereum.Text (
 import Prelude
 import Data.BigInt (BigInt, fromBase, toNumber)
 import Data.ByteString (ByteString, fromString, toString)
-import Data.Int (fromNumber)
+import Data.Int (fromNumber, odd)
 import Data.Maybe (Maybe, fromMaybe)
-import Data.String (Pattern(..), stripPrefix)
+import Data.String (Pattern(..), length, stripPrefix)
 import Node.Encoding (Encoding(..))
 
 toHex :: ByteString -> String
@@ -18,7 +18,8 @@ toHex bs = "0x" <> toString bs Hex
 
 fromHex :: String -> ByteString
 fromHex s = let noPrefix = fromMaybe s $ stripPrefix (Pattern "0x") s
-            in fromString noPrefix Hex
+                padded = if odd $ length noPrefix then "0" <> noPrefix else noPrefix
+            in fromString padded Hex
 
 fromHexQuantity :: String -> Maybe BigInt
 fromHexQuantity s = let noPrefix = fromMaybe s $ stripPrefix (Pattern "0x") s

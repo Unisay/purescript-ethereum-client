@@ -26,15 +26,15 @@ spec = do
       Assert.equal Nothing actual
 
     test "eth_syncing status" $ do
-      let mockResponse = "currentBlock"  := "0xe40b5"
-                      ~> "highestBlock"  := "0xe40c7"
-                      ~> "startingBlock" := "0xe40b5"
+      let mockResponse = "startingBlock" := "0x1"
+                      ~> "currentBlock"  := "0x2"
+                      ~> "highestBlock"  := "0x3"
                       ~> jsonEmptyObject
 
       actual <- E.run (respondWith mockResponse) E.ethSyncing
-      let expected = Just $ SyncStatus { startingBlock : bigInt "0x0e40b5"
-                                       , currentBlock  : bigInt "0x0e40c7"
-                                       , highestBlock  : bigInt "0x0e40b5"
+      let expected = Just $ SyncStatus { startingBlock : bigInt "1"
+                                       , currentBlock  : bigInt "2"
+                                       , highestBlock  : bigInt "3"
                                        }
       Assert.equal expected actual
 
