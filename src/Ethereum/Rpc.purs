@@ -1,12 +1,22 @@
-module Ethereum.Rpc where
+module Ethereum.Rpc
+  ( Method
+  , Params
+  , Request
+  , Response(..)
+  , AffjaxTransport(..)
+  , class Transport
+  , call
+  , callParams
+  , call0
+  ) where
 
 import Prelude
-import Data.Maybe (maybe)
 import Control.Monad.Aff (Aff, error, throwError)
 import Data.Argonaut.Core (Json, jsonEmptyObject)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.?), (.??))
 import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
 import Data.Either (Either(..), either)
+import Data.Maybe (maybe)
 import Network.HTTP.Affjax (AJAX, URL, post)
 import Network.HTTP.StatusCode (StatusCode(..))
 

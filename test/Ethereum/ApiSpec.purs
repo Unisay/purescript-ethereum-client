@@ -1,7 +1,6 @@
 module Ethereum.Api.Spec where
 
 import Prelude
-
 import Data.Argonaut.Core (Json, jsonEmptyObject, jsonFalse)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
 import Data.BigInt (BigInt, fromString)

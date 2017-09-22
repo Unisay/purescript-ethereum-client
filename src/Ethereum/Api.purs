@@ -18,7 +18,6 @@ module Ethereum.Api
   ) where
 
 import Prelude
-
 import Control.Monad.Aff (Aff, error, throwError)
 import Control.Monad.Free (Free, foldFree, liftF)
 import Data.Argonaut.Core (Json, isBoolean)
