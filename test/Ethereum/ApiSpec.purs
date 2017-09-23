@@ -1,14 +1,15 @@
 module Ethereum.Api.Spec where
 
 import Prelude
-import Data.Argonaut.Core (Json, jsonEmptyObject, jsonFalse)
+
+import Data.Argonaut.Core (Json, fromString, jsonEmptyObject, jsonFalse)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
-import Data.BigInt (BigInt, fromString)
-import Data.Maybe (Maybe(..), fromJust)
+import Data.BigInt (fromInt)
+import Data.Maybe (Maybe(Just, Nothing))
+import Ethereum.Api (Block(..))
 import Ethereum.Api as E
 import Ethereum.Rpc as Rpc
 import Ethereum.Type (SyncStatus(..))
-import Partial.Unsafe (unsafePartial)
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.Assert as Assert
 
@@ -31,11 +32,15 @@ spec = do
                       ~> jsonEmptyObject
 
       actual <- E.run (respondWith mockResponse) E.ethSyncing
-      let expected = Just $ SyncStatus { startingBlock : bigInt "1"
-                                       , currentBlock  : bigInt "2"
-                                       , highestBlock  : bigInt "3"
+      let expected = Just $ SyncStatus { startingBlock : Block $ fromInt 1
+                                       , currentBlock  : Block $ fromInt 2
+                                       , highestBlock  : Block $ fromInt 3
                                        }
       Assert.equal expected actual
+
+    test "eth_blockNumber" $ do
+      actual <- E.run (respondWith $ fromString "0x03") E.ethBlockNumber
+      Assert.equal (Block $ fromInt 3) actual
 
 newtype TestTransport = TestTransport Json
 
@@ -44,6 +49,3 @@ instance testTransport :: Rpc.Transport TestTransport e where
 
 respondWith :: ∀ r. EncodeJson r => r -> TestTransport
 respondWith r = TestTransport $ encodeJson r
-
-bigInt :: String -> BigInt
-bigInt = unsafePartial fromJust <<< fromString

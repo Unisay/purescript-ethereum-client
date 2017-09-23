@@ -26,9 +26,9 @@ instance showNetwork :: Show Network where
 
 
 newtype SyncStatus = SyncStatus {
-  startingBlock :: BigInt,
-  currentBlock  :: BigInt,
-  highestBlock  :: BigInt
+  startingBlock :: Block,
+  currentBlock  :: Block,
+  highestBlock  :: Block
 }
 
 derive instance eqSyncStatus :: Eq SyncStatus
@@ -36,9 +36,9 @@ derive instance eqSyncStatus :: Eq SyncStatus
 instance decodeSyncStatus :: DecodeJson SyncStatus where
   decodeJson json = do
     obj <- decodeJson json
-    startingBlock <- obj .? "startingBlock" >>= fromHexQuantity >>> note "Failed to decode startingBlock"
-    currentBlock <- obj .? "currentBlock" >>= fromHexQuantity >>> note "Failed to decode currentBlock"
-    highestBlock <- obj .? "highestBlock" >>= fromHexQuantity >>> note "Failed to decode highestBlock"
+    startingBlock <- obj .? "startingBlock"
+    currentBlock <- obj .? "currentBlock"
+    highestBlock <- obj .? "highestBlock"
     pure $ SyncStatus { startingBlock: startingBlock
                       , currentBlock:  currentBlock
                       , highestBlock:  highestBlock
@@ -59,13 +59,26 @@ newtype Address = Address ByteString
 
 instance decodeAddress :: DecodeJson Address where
   decodeJson json = do
-    bs <- fromHex <$> decodeJson json
+    s <- decodeJson json
+    bs <- note "Failed to decode HEX string" $ fromHex s
     when (isEmpty bs) $ Left "Empty address"
     pure $ Address bs
 
 instance showAddress :: Show Address where
   show (Address bs) = toHex bs
 
+newtype Block = Block BigInt
+
+instance decodeBlock :: DecodeJson Block where
+  decodeJson json = do
+    s <- decodeJson json
+    i <- note "Failed to decode HEX string" $ fromHexQuantity s
+    pure $ Block i
+
+instance showBlock :: Show Block where
+  show (Block i) = "Block (" <> (toString i) <> ")"
+
+derive instance eqBlock :: Eq Block
 
 newtype Wei = Wei BigInt
 

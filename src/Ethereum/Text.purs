@@ -16,7 +16,7 @@ import Node.Encoding (Encoding(..))
 toHex :: ByteString -> String
 toHex bs = "0x" <> toString bs Hex
 
-fromHex :: String -> ByteString
+fromHex :: String -> Maybe ByteString
 fromHex s = let noPrefix = fromMaybe s $ stripPrefix (Pattern "0x") s
                 padded = if odd $ length noPrefix then "0" <> noPrefix else noPrefix
             in fromString padded Hex

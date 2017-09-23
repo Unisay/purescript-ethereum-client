@@ -15,9 +15,11 @@ module Ethereum.Api
   , ethHashrate
   , ethGasPrice
   , ethAccounts
+  , ethBlockNumber
   ) where
 
 import Prelude
+
 import Control.Monad.Aff (Aff, error, throwError)
 import Control.Monad.Free (Free, foldFree, liftF)
 import Data.Argonaut.Core (Json, isBoolean)
@@ -27,7 +29,7 @@ import Data.Either (Either, either, note)
 import Data.Maybe (Maybe(Just, Nothing))
 import Ethereum.Rpc as Rpc
 import Ethereum.Text (fromHex, fromHexQuantity', toHex)
-import Ethereum.Type (Address, Network(..), SyncStatus, Wei(Wei))
+import Ethereum.Type (Address, Block(..), Network(..), Quantity(..), SyncStatus, Wei(Wei))
 
 type Decoder r = Json -> Either String r
 
@@ -43,6 +45,7 @@ data EthF more = Web3ClientVersion (Decoder String) (String -> more)
                | EthHashrate (Decoder Int) (Int -> more)
                | EthGasPrice (Decoder Wei) (Wei -> more)
                | EthAccounts (Decoder (Array Address)) (Array Address -> more)
+               | EthBlockNumber (Decoder Block) (Block -> more)
 
 type Eth a = Free EthF a
 
@@ -52,7 +55,7 @@ web3ClientVersion = liftF $ Web3ClientVersion decodeJson id
 
 -- | Returns Keccak-256 (not the standardized SHA3-256) of the given data
 keccak256 :: ByteString -> Eth ByteString
-keccak256 s = liftF $ Keccak256 s (decodeJson >>> map fromHex) id
+keccak256 s = liftF $ Keccak256 s (decodeJson >=> note "Invalid HEX string" <<< fromHex) id
 
 -- | Current network
 netVersion :: Eth Network
@@ -94,6 +97,10 @@ ethGasPrice = liftF $ EthGasPrice decodeJson id
 ethAccounts :: Eth (Array Address)
 ethAccounts = liftF $ EthAccounts decodeJson id
 
+-- | The number of most recent block
+ethBlockNumber :: Eth Block
+ethBlockNumber = liftF $ EthBlockNumber decodeJson id
+
 -- | Runs Eth monad returning Aff
 run :: ∀ c e a. Rpc.Transport c e => c -> Eth a -> Aff e a
 run = foldFree <<< nt
@@ -111,6 +118,7 @@ run = foldFree <<< nt
     nt cfg (EthHashrate d f) = Rpc.call0 cfg "eth_hashrate" >>= handle d f
     nt cfg (EthGasPrice d f) = Rpc.call0 cfg "eth_gasPrice" >>= handle d f
     nt cfg (EthAccounts d f) = Rpc.call0 cfg "eth_accounts" >>= handle d f
+    nt cfg (EthBlockNumber d f) = Rpc.call0 cfg "eth_blockNumber" >>= handle d f
 
     unpackRpcResponse :: ∀ fx. Rpc.Response Json -> Aff fx Json
     unpackRpcResponse (Rpc.Result json) = pure json

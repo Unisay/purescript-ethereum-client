@@ -27,6 +27,7 @@ info = do
   hashrate <- E.ethHashrate
   gasPrice <- E.ethGasPrice
   accounts <- E.ethAccounts
+  recentBlock <- E.ethBlockNumber
   pure $ """
 Network:                    """ <> (show network) <> """
 Is listening:               """ <> (show listening) <> """
@@ -40,6 +41,7 @@ Is mining:                  """ <> (show mining) <> """
 Hashes per second:          """ <> (show hashrate) <> """
 Gas price:                  """ <> (show gasPrice) <> """ WEI
 Accounts:                   """ <> (joinWith ", " $ show <$> accounts) <> """
+Most recent block:          """ <> (show recentBlock) <> """
 """
 
 main :: ∀ e. Eff (ajax :: AJAX, console :: CONSOLE | e) Unit
