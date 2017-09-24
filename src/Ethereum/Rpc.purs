@@ -1,12 +1,11 @@
 module Ethereum.Rpc
   ( Method
   , Params
-  , Request
+  , Request(..)
   , Response(..)
   , AffjaxTransport(..)
   , class Transport
   , call
-  , callParams
   , call0
   ) where
 

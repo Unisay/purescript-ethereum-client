@@ -7,7 +7,8 @@ import Data.BigInt (BigInt, toString)
 import Data.ByteString (ByteString, isEmpty)
 import Data.Either (Either(..), note)
 import Data.Maybe (maybe)
-import Ethereum.Text (fromHex, fromHexQuantity, toHex)
+import Data.Newtype (class Newtype, unwrap)
+import Ethereum.Text (class ToHex, fromHex, toHex)
 
 data Network = Mainnet
              | Morden
@@ -53,6 +54,8 @@ newtype Quantity = Quantity Int
 
 instance decodeQuantity :: DecodeJson Quantity where
   decodeJson json = Quantity <$> decodeJson json
+derive instance newtypeQuantity :: Newtype Quantity _
+instance toHexQuantity :: ToHex Quantity where toHex = unwrap >>> toHex
 
 
 newtype Address = Address ByteString
@@ -67,26 +70,47 @@ instance decodeAddress :: DecodeJson Address where
 instance showAddress :: Show Address where
   show (Address bs) = toHex bs
 
+derive instance newtypeAddress :: Newtype Address _
+instance toHexAddress :: ToHex Address where toHex = unwrap >>> toHex
+
+
 newtype Block = Block BigInt
 
 instance decodeBlock :: DecodeJson Block where
   decodeJson json = do
     s <- decodeJson json
-    i <- note "Failed to decode HEX string" $ fromHexQuantity s
+    i <- note "Failed to decode HEX string" $ fromHex s
     pure $ Block i
 
 instance showBlock :: Show Block where
-  show (Block i) = "Block (" <> (toString i) <> ")"
+  show = unwrap >>> toHex >>> append "Block#"
 
 derive instance eqBlock :: Eq Block
+derive instance newtypeBlock :: Newtype Block _
+instance toHexBlock :: ToHex Block where toHex = unwrap >>> toHex
+
+
+data Tag = Earliest -- the earliest/genesis block
+         | Latest   -- the latest mined block
+         | Pending  -- the pending state/transactions
+
+derive instance eqTag :: Eq Tag
+
+instance showTag :: Show Tag where
+  show Earliest = "earlises"
+  show Latest   = "latest"
+  show Pending  = "pending"
+
 
 newtype Wei = Wei BigInt
 
 instance decodeWei :: DecodeJson Wei where
   decodeJson json = do
     h <- decodeJson json
-    i <- maybe (Left "Can't parse Wei amount") Right $ fromHexQuantity h
+    i <- maybe (Left "Can't parse Wei amount") Right $ fromHex h
     pure $ Wei i
 
-instance showWei :: Show Wei where
-  show (Wei i) = toString i
+derive instance eqWei :: Eq Wei
+derive instance newtypeWei :: Newtype Wei _
+instance showWei :: Show Wei where show = unwrap >>> toString >>> flip append " WEI"
+instance toHex :: ToHex Wei where toHex = unwrap >>> toHex

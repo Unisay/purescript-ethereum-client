@@ -16,6 +16,7 @@ module Ethereum.Api
   , ethGasPrice
   , ethAccounts
   , ethBlockNumber
+  , ethGetBalance
   ) where
 
 import Prelude
@@ -25,11 +26,11 @@ import Control.Monad.Free (Free, foldFree, liftF)
 import Data.Argonaut.Core (Json, isBoolean)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.ByteString (ByteString)
-import Data.Either (Either, either, note)
+import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(Just, Nothing))
 import Ethereum.Rpc as Rpc
-import Ethereum.Text (fromHex, fromHexQuantity', toHex)
-import Ethereum.Type (Address, Block(..), Network(..), Quantity(..), SyncStatus, Wei(Wei))
+import Ethereum.Text (fromHex, toHex)
+import Ethereum.Type (Address(..), Block(..), Tag(..), Network(..), Quantity(..), SyncStatus, Wei(Wei))
 
 type Decoder r = Json -> Either String r
 
@@ -46,6 +47,7 @@ data EthF more = Web3ClientVersion (Decoder String) (String -> more)
                | EthGasPrice (Decoder Wei) (Wei -> more)
                | EthAccounts (Decoder (Array Address)) (Array Address -> more)
                | EthBlockNumber (Decoder Block) (Block -> more)
+               | EthGetBalance Address (Either Block Tag) (Decoder Wei) (Wei -> more)
 
 type Eth a = Free EthF a
 
@@ -101,24 +103,49 @@ ethAccounts = liftF $ EthAccounts decodeJson id
 ethBlockNumber :: Eth Block
 ethBlockNumber = liftF $ EthBlockNumber decodeJson id
 
+-- | The balance of the account of given address
+ethGetBalance :: Address -> Either Block Tag -> Eth Wei
+ethGetBalance address defBlock = liftF $ EthGetBalance address defBlock decodeJson id
+
 -- | Runs Eth monad returning Aff
 run :: ∀ c e a. Rpc.Transport c e => c -> Eth a -> Aff e a
 run = foldFree <<< nt
   where
     nt :: Rpc.Transport c e => c -> EthF ~> Aff e
-    nt cfg (Web3ClientVersion d f) = Rpc.call0 cfg "web3_clientVersion" >>= handle d f
-    nt cfg (Keccak256 s d f) = Rpc.callParams cfg "web3_sha3" [toHex s] >>= handle d f
-    nt cfg (NetVersion d f) = Rpc.call0 cfg "net_version" >>= handle d f
-    nt cfg (NetListening d f) = Rpc.call0 cfg "net_listening" >>= handle d f
-    nt cfg (NetPeerCount d f) = Rpc.call0 cfg "net_peerCount" >>= handle d f
-    nt cfg (EthProtocolVersion d f) = Rpc.call0 cfg "eth_protocolVersion" >>= handle d f
-    nt cfg (EthSyncing d f) = Rpc.call0 cfg "eth_syncing" >>= handle d f
-    nt cfg (EthCoinbase d f) = Rpc.call0 cfg "eth_coinbase" >>= handle d f
-    nt cfg (EthMining d f) = Rpc.call0 cfg "eth_mining" >>= handle d f
-    nt cfg (EthHashrate d f) = Rpc.call0 cfg "eth_hashrate" >>= handle d f
-    nt cfg (EthGasPrice d f) = Rpc.call0 cfg "eth_gasPrice" >>= handle d f
-    nt cfg (EthAccounts d f) = Rpc.call0 cfg "eth_accounts" >>= handle d f
-    nt cfg (EthBlockNumber d f) = Rpc.call0 cfg "eth_blockNumber" >>= handle d f
+    nt cfg (Web3ClientVersion d f) =
+      Rpc.call0 cfg "web3_clientVersion" >>= handle d f
+    nt cfg (Keccak256 s d f) =
+      let request = Rpc.Request { method: "web3_sha3", params: [toHex s] }
+      in Rpc.call cfg request >>= handle d f
+    nt cfg (NetVersion d f) =
+      Rpc.call0 cfg "net_version" >>= handle d f
+    nt cfg (NetListening d f) =
+      Rpc.call0 cfg "net_listening" >>= handle d f
+    nt cfg (NetPeerCount d f) =
+      Rpc.call0 cfg "net_peerCount" >>= handle d f
+    nt cfg (EthProtocolVersion d f) =
+      Rpc.call0 cfg "eth_protocolVersion" >>= handle d f
+    nt cfg (EthSyncing d f) =
+      Rpc.call0 cfg "eth_syncing" >>= handle d f
+    nt cfg (EthCoinbase d f) =
+      Rpc.call0 cfg "eth_coinbase" >>= handle d f
+    nt cfg (EthMining d f) =
+      Rpc.call0 cfg "eth_mining" >>= handle d f
+    nt cfg (EthHashrate d f) =
+      Rpc.call0 cfg "eth_hashrate" >>= handle d f
+    nt cfg (EthGasPrice d f) =
+      Rpc.call0 cfg "eth_gasPrice" >>= handle d f
+    nt cfg (EthAccounts d f) =
+      Rpc.call0 cfg "eth_accounts" >>= handle d f
+    nt cfg (EthBlockNumber d f) =
+      Rpc.call0 cfg "eth_blockNumber" >>= handle d f
+    nt cfg (EthGetBalance (Address address) defaultBlock d f) =
+      let param1 = toHex address
+          param2 = case defaultBlock of
+                     (Left block) -> toHex block
+                     (Right tag) -> show tag
+          request = Rpc.Request { method: "eth_getBalance", params: [param1, param2] }
+      in Rpc.call cfg request >>= handle d f
 
     unpackRpcResponse :: ∀ fx. Rpc.Response Json -> Aff fx Json
     unpackRpcResponse (Rpc.Result json) = pure json
@@ -134,7 +161,7 @@ run = foldFree <<< nt
     err = throwError <<< error
 
 parseSmallInt :: String -> Either String Int
-parseSmallInt = note "Failed to parse hex string as int" <<< fromHexQuantity'
+parseSmallInt = note "Failed to parse hex string as int" <<< fromHex
 
 parseNetwork :: String -> Network
 parseNetwork "1" = Mainnet

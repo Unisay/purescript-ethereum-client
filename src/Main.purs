@@ -1,11 +1,13 @@
 module Main where
 
 import Prelude
+
 import Control.Monad.Aff (launchAff_)
 import Control.Monad.Aff.Console (log)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE)
 import Data.ByteString (toUTF8)
+import Data.Either (Either(..))
 import Data.Maybe (maybe)
 import Data.String (joinWith)
 import Ethereum.Api as E
@@ -28,6 +30,7 @@ info = do
   gasPrice <- E.ethGasPrice
   accounts <- E.ethAccounts
   recentBlock <- E.ethBlockNumber
+  balance <- E.ethGetBalance coinbase (Left recentBlock)
   pure $ """
 Network:                    """ <> (show network) <> """
 Is listening:               """ <> (show listening) <> """
@@ -39,9 +42,10 @@ Sync status:                """ <> (maybe "Not syncing" show syncStatus) <> """
 Coinbase:                   """ <> (show coinbase) <> """
 Is mining:                  """ <> (show mining) <> """
 Hashes per second:          """ <> (show hashrate) <> """
-Gas price:                  """ <> (show gasPrice) <> """ WEI
+Gas price:                  """ <> (show gasPrice) <> """
 Accounts:                   """ <> (joinWith ", " $ show <$> accounts) <> """
 Most recent block:          """ <> (show recentBlock) <> """
+Account balance:            """ <> (show balance) <> """
 """
 
 main :: ∀ e. Eff (ajax :: AJAX, console :: CONSOLE | e) Unit
