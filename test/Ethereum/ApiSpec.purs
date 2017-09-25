@@ -7,7 +7,7 @@ import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
 import Data.BigInt (fromInt)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(Just, Nothing))
-import Ethereum.Api (Address(..), Block(..), Tag(..), Wei(..))
+import Ethereum.Api (Address(..), Block(..), Quantity(..), Tag(..), Wei(..))
 import Ethereum.Api as E
 import Ethereum.Rpc as Rpc
 import Ethereum.Type (SyncStatus(..))
@@ -53,6 +53,12 @@ spec = do
       let eth = E.ethGetStorageAt (Address $ unsafeByteString "00") 42 (Right Earliest)
       actual <- E.run (respondWith $ fromString "0x010203") eth
       Assert.equal (unsafeByteString "010203") actual
+
+    test "eth_getTransactionCount" $ do
+      let eth = E.ethGetTransactionCount (Address $ unsafeByteString "01") (Left $ Block (fromInt 42))
+      actual <- E.run (respondWith $ fromString "0x09") eth
+      Assert.equal (Quantity 9) actual
+
 
 newtype TestTransport = TestTransport Json
 

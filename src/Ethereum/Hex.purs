@@ -23,7 +23,7 @@ instance byteStringToHex :: ToHex BS.ByteString where
 instance bigIntToHex :: ToHex BI.BigInt where
   toHex bi = "0x" <> BI.toBase 16 bi
 
-instance inToHex :: ToHex Int where
+instance intToHex :: ToHex Int where
   toHex = toStringAs hexadecimal
 
 
