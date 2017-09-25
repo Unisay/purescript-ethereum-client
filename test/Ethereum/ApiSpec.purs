@@ -49,6 +49,11 @@ spec = do
       actual <- E.run (respondWith $ fromString "0x03") eth
       Assert.equal (Wei $ fromInt 3) actual
 
+    test "eth_getStorageAt" $ do
+      let eth = E.ethGetStorageAt (Address $ unsafeByteString "00") 42 (Right Earliest)
+      actual <- E.run (respondWith $ fromString "0x010203") eth
+      Assert.equal (unsafeByteString "010203") actual
+
 newtype TestTransport = TestTransport Json
 
 instance testTransport :: Rpc.Transport TestTransport e where

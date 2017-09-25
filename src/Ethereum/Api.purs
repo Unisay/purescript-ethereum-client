@@ -17,6 +17,7 @@ module Ethereum.Api
   , ethAccounts
   , ethBlockNumber
   , ethGetBalance
+  , ethGetStorageAt
   ) where
 
 import Prelude
@@ -48,6 +49,7 @@ data EthF more = Web3ClientVersion (Decoder String) (String -> more)
                | EthAccounts (Decoder (Array Address)) (Array Address -> more)
                | EthBlockNumber (Decoder Block) (Block -> more)
                | EthGetBalance Address (Either Block Tag) (Decoder Wei) (Wei -> more)
+               | EthGetStorageAt Address Int (Either Block Tag) (Decoder ByteString) (ByteString -> more)
 
 type Eth a = Free EthF a
 
@@ -107,6 +109,12 @@ ethBlockNumber = liftF $ EthBlockNumber decodeJson id
 ethGetBalance :: Address -> Either Block Tag -> Eth Wei
 ethGetBalance address defBlock = liftF $ EthGetBalance address defBlock decodeJson id
 
+-- | The value from a storage position at a given address
+ethGetStorageAt :: Address -> Int -> Either Block Tag -> Eth ByteString
+ethGetStorageAt address pos defBlock =
+  let decoder = decodeJson >=> note "Invalid HEX string" <<< fromHex
+  in liftF $ EthGetStorageAt address pos defBlock decoder id
+
 -- | Runs Eth monad returning Aff
 run :: ∀ c e a. Rpc.Transport c e => c -> Eth a -> Aff e a
 run = foldFree <<< nt
@@ -141,15 +149,27 @@ run = foldFree <<< nt
       Rpc.call0 cfg "eth_blockNumber" >>= handle d f
     nt cfg (EthGetBalance (Address address) defaultBlock d f) =
       let param1 = toHex address
-          param2 = case defaultBlock of
-                     (Left block) -> toHex block
-                     (Right tag) -> show tag
-          request = Rpc.Request { method: "eth_getBalance", params: [param1, param2] }
+          param2 = packDefaultBlock defaultBlock
+          request = Rpc.Request { method: "eth_getBalance"
+                                , params: [param1, param2]
+                                }
+      in Rpc.call cfg request >>= handle d f
+    nt cfg (EthGetStorageAt (Address address) pos defaultBlock d f) =
+      let param1 = toHex address
+          param2 = toHex pos
+          param3 = packDefaultBlock defaultBlock
+          request = Rpc.Request { method: "eth_getStorageAt"
+                                , params: [param1, param2, param3]
+                                }
       in Rpc.call cfg request >>= handle d f
 
     unpackRpcResponse :: ∀ fx. Rpc.Response Json -> Aff fx Json
     unpackRpcResponse (Rpc.Result json) = pure json
     unpackRpcResponse (Rpc.Error code message) = err $ "JSON RPC error (" <> (show code) <> "): " <> message
+
+    packDefaultBlock :: Either Block Tag -> String
+    packDefaultBlock (Left block) = toHex block
+    packDefaultBlock (Right tag) = show tag
 
     decode :: ∀ fx r. Decoder r -> Json -> Aff fx r
     decode decoder json = either err pure $ decoder json
