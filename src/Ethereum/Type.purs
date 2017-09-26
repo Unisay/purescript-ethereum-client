@@ -51,9 +51,6 @@ instance showSyncStatus :: Show SyncStatus where
                       <> "highestBlock = '"  <> (show ss.highestBlock)  <> "' "
 
 newtype Quantity = Quantity Int
-
-instance decodeQuantity :: DecodeJson Quantity where
-  decodeJson json = Quantity <$> decodeJson json
 derive instance eqQuantity :: Eq Quantity
 derive instance newtypeQuantity :: Newtype Quantity _
 instance showQuantity :: Show Quantity where show = unwrap >>> show

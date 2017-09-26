@@ -18,6 +18,9 @@ import Test.Unsafe (unsafeByteString)
 spec :: ∀ e. TestSuite e
 spec = do
   suite "Api" do
+    let block = Block (fromInt 1)
+        address = Address $ unsafeByteString "08"
+
     test "web3_clientVersion" $ do
       let version = "test-client-version"
       actual <- E.run (respondWith version) E.web3ClientVersion
@@ -45,20 +48,24 @@ spec = do
       Assert.equal (Block $ fromInt 3) actual
 
     test "eth_getBalance" $ do
-      let eth = E.ethGetBalance (Address $ unsafeByteString "00") (Right Latest)
+      let eth = E.ethGetBalance address (Right Latest)
       actual <- E.run (respondWith $ fromString "0x03") eth
       Assert.equal (Wei $ fromInt 3) actual
 
     test "eth_getStorageAt" $ do
-      let eth = E.ethGetStorageAt (Address $ unsafeByteString "00") 42 (Right Earliest)
+      let eth = E.ethGetStorageAt address 42 (Right Earliest)
       actual <- E.run (respondWith $ fromString "0x010203") eth
       Assert.equal (unsafeByteString "010203") actual
 
     test "eth_getTransactionCount" $ do
-      let eth = E.ethGetTransactionCount (Address $ unsafeByteString "01") (Left $ Block (fromInt 42))
+      let eth = E.ethGetTransactionCount address (Left block)
       actual <- E.run (respondWith $ fromString "0x09") eth
       Assert.equal (Quantity 9) actual
 
+    test "eth_getBlockTransactionCountByHash" $ do
+      let eth = E.ethGetBlockTransactionCountByHash block
+      actual <- E.run (respondWith $ fromString "0x08") eth
+      Assert.equal (Quantity 8) actual
 
 newtype TestTransport = TestTransport Json
 

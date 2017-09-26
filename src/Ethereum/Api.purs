@@ -19,6 +19,7 @@ module Ethereum.Api
   , ethGetBalance
   , ethGetStorageAt
   , ethGetTransactionCount
+  , ethGetBlockTransactionCountByHash
   ) where
 
 import Prelude
@@ -51,7 +52,8 @@ data EthF more = Web3ClientVersion (Decoder String) (String -> more)
                | EthBlockNumber (Decoder Block) (Block -> more)
                | EthGetBalance Address (Either Block Tag) (Decoder Wei) (Wei -> more)
                | EthGetStorageAt Address Int (Either Block Tag) (Decoder ByteString) (ByteString -> more)
-               | EthGetTransactionCount Address (Either Block Tag) (Decoder Quantity) (Quantity -> more)
+               | EthGetTxCount Address (Either Block Tag) (Decoder Quantity) (Quantity -> more)
+               | EthGetBlockTxCount Block (Decoder Quantity) (Quantity -> more)
 
 type Eth a = Free EthF a
 
@@ -120,8 +122,16 @@ ethGetStorageAt address pos defBlock =
 -- | The number of transactions sent from an address
 ethGetTransactionCount :: Address -> Either Block Tag -> Eth Quantity
 ethGetTransactionCount address defBlock =
-  liftF $ EthGetTransactionCount address defBlock (decodeJson >=> parseSmallInt >>> map Quantity) id
+  liftF $ EthGetTxCount address defBlock decodeQuantity id
 
+-- | The number of transactions in a block from a block matching the given block hash
+ethGetBlockTransactionCountByHash :: Block -> Eth Quantity
+ethGetBlockTransactionCountByHash block = liftF $ EthGetBlockTxCount block decodeQuantity id
+
+
+
+decodeQuantity :: Json -> Either String Quantity
+decodeQuantity = decodeJson >=> parseSmallInt >>> map Quantity
 
 -- | Runs Eth monad returning Aff
 run :: ∀ c e a. Rpc.Transport c e => c -> Eth a -> Aff e a
@@ -170,14 +180,18 @@ run = foldFree <<< nt
                                 , params: [param1, param2, param3]
                                 }
       in Rpc.call cfg request >>= handle d f
-    nt cfg (EthGetTransactionCount address defaultBlock d f) =
+    nt cfg (EthGetTxCount address defaultBlock d f) =
       let param1 = toHex address
           param2 = packDefaultBlock defaultBlock
           request = Rpc.Request { method: "eth_getTransactionCount"
                                 , params: [param1, param2]
                                 }
       in Rpc.call cfg request >>= handle d f
-
+    nt cfg (EthGetBlockTxCount block d f) =
+      let request = Rpc.Request { method: "eth_getBlockTransactionCountByHash"
+                                , params: [toHex block]
+                                }
+      in Rpc.call cfg request >>= handle d f
 
     unpackRpcResponse :: ∀ fx. Rpc.Response Json -> Aff fx Json
     unpackRpcResponse (Rpc.Result json) = pure json
