@@ -31,6 +31,7 @@ info = do
   accounts <- E.ethAccounts
   recentBlock <- E.ethBlockNumber
   balance <- E.ethGetBalance coinbase (Left recentBlock)
+  trCount <- E.ethGetTransactionCount coinbase (Left recentBlock)
   pure $ """
 Network:                    """ <> (show network) <> """
 Is listening:               """ <> (show listening) <> """
@@ -46,6 +47,7 @@ Gas price:                  """ <> (show gasPrice) <> """
 Accounts:                   """ <> (joinWith ", " $ show <$> accounts) <> """
 Most recent block:          """ <> (show recentBlock) <> """
 Account balance:            """ <> (show balance) <> """
+# of coinbase transactions  """ <> (show trCount) <> """
 """
 
 main :: ∀ e. Eff (ajax :: AJAX, console :: CONSOLE | e) Unit
