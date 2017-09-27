@@ -2,15 +2,17 @@ module Ethereum.Api.Spec where
 
 import Prelude
 
-import Data.Argonaut.Core (Json, fromString, jsonEmptyObject, jsonFalse)
+import Data.Argonaut.Core (Json, fromString, jsonEmptyObject, jsonFalse, jsonNull)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
 import Data.BigInt (fromInt)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(Just, Nothing))
-import Ethereum.Api (Address(..), Block(..), Quantity(..), Tag(..), Wei(..))
+import Data.Maybe (Maybe(Just, Nothing), fromJust)
+import Ethereum.Api (Address(..), BlockHash(..), BlockNumber(..), Quantity(..), Tag(..), Wei(..))
 import Ethereum.Api as E
 import Ethereum.Rpc as Rpc
+import Ethereum.Text (fromHex)
 import Ethereum.Type (SyncStatus(..))
+import Partial.Unsafe (unsafePartial)
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.Assert as Assert
 import Test.Unsafe (unsafeByteString)
@@ -18,7 +20,8 @@ import Test.Unsafe (unsafeByteString)
 spec :: ∀ e. TestSuite e
 spec = do
   suite "Api" do
-    let block = Block (fromInt 1)
+    let blockNumber = BlockNumber $ fromInt 1
+        blockHash = BlockHash $ unsafePartial $ fromJust $ fromHex "b903239f8543d04b5dc1ba6579132b143087c68db1b2168786408fcbce568238"
         address = Address $ unsafeByteString "08"
 
     test "web3_clientVersion" $ do
@@ -37,15 +40,15 @@ spec = do
                       ~> jsonEmptyObject
 
       actual <- E.run (respondWith mockResponse) E.ethSyncing
-      let expected = Just $ SyncStatus { startingBlock : Block $ fromInt 1
-                                       , currentBlock  : Block $ fromInt 2
-                                       , highestBlock  : Block $ fromInt 3
+      let expected = Just $ SyncStatus { startingBlock : BlockNumber $ fromInt 1
+                                       , currentBlock  : BlockNumber $ fromInt 2
+                                       , highestBlock  : BlockNumber $ fromInt 3
                                        }
       Assert.equal expected actual
 
     test "eth_blockNumber" $ do
-      actual <- E.run (respondWith $ fromString "0x03") E.ethBlockNumber
-      Assert.equal (Block $ fromInt 3) actual
+      actual <- E.run (respondWith $ fromString "0x01") E.ethBlockNumber
+      Assert.equal blockNumber actual
 
     test "eth_getBalance" $ do
       let eth = E.ethGetBalance address (Right Latest)
@@ -58,14 +61,19 @@ spec = do
       Assert.equal (unsafeByteString "010203") actual
 
     test "eth_getTransactionCount" $ do
-      let eth = E.ethGetTransactionCount address (Left block)
+      let eth = E.ethGetTransactionCount address (Left blockNumber)
       actual <- E.run (respondWith $ fromString "0x09") eth
       Assert.equal (Quantity 9) actual
 
-    test "eth_getBlockTransactionCountByHash" $ do
-      let eth = E.ethGetBlockTransactionCountByHash block
+    test "eth_getBlockTransactionCountByHash just" $ do
+      let eth = E.ethGetBlockTransactionCountByHash blockHash
       actual <- E.run (respondWith $ fromString "0x08") eth
-      Assert.equal (Quantity 8) actual
+      Assert.equal (Just $ Quantity 8) actual
+
+    test "eth_getBlockTransactionCountByHash nothing" $ do
+      let eth = E.ethGetBlockTransactionCountByHash blockHash
+      actual <- E.run (respondWith jsonNull) eth
+      Assert.equal Nothing actual
 
 newtype TestTransport = TestTransport Json
 

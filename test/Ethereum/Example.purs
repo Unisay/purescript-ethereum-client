@@ -1,19 +1,28 @@
-module Main where
+module Ethereum.Example.Spec where
 
 import Prelude
 
-import Control.Monad.Aff (launchAff_)
 import Control.Monad.Aff.Console (log)
-import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE)
 import Data.ByteString (toUTF8)
 import Data.Either (Either(..))
-import Data.Maybe (maybe)
+import Data.Maybe (fromJust, maybe)
 import Data.String (joinWith)
 import Ethereum.Api as E
-import Ethereum.Rpc (AffjaxTransport(..))
-import Ethereum.Text (toHex)
+import Ethereum.Rpc (AffjaxLoggingTransport(..))
+import Ethereum.Text (fromHex, toHex)
 import Network.HTTP.Affjax (AJAX)
+import Partial.Unsafe (unsafePartial)
+import Test.Unit (TestSuite, suite, test)
+import Test.Unit.Assert as Assert
+
+spec :: ∀ e. TestSuite ( ajax :: AJAX, console :: CONSOLE | e)
+spec = do
+  suite "Example" $
+    test "against local node" do
+      let transport = AffjaxLoggingTransport "http://127.0.0.1:8545"
+      E.run transport info >>= log
+      Assert.assert "" true
 
 info :: E.Eth String
 info = do
@@ -29,9 +38,12 @@ info = do
   hashrate <- E.ethHashrate
   gasPrice <- E.ethGasPrice
   accounts <- E.ethAccounts
-  recentBlock <- E.ethBlockNumber
-  balance <- E.ethGetBalance coinbase (Left recentBlock)
-  trCount <- E.ethGetTransactionCount coinbase (Left recentBlock)
+  recentBlockNumber <- E.ethBlockNumber
+  let defaultBlock = Left recentBlockNumber
+  balance <- E.ethGetBalance coinbase defaultBlock
+  accountTxCount <- E.ethGetTransactionCount coinbase defaultBlock
+  let blockHash = unsafePartial $ fromJust $ fromHex "b903239f8543d04b5dc1ba6579132b143087c68db1b2168786408fcbce568238"
+  blockTxCount <- E.ethGetBlockTransactionCountByHash blockHash
   pure $ """
 Network:                    """ <> (show network) <> """
 Is listening:               """ <> (show listening) <> """
@@ -45,11 +57,8 @@ Is mining:                  """ <> (show mining) <> """
 Hashes per second:          """ <> (show hashrate) <> """
 Gas price:                  """ <> (show gasPrice) <> """
 Accounts:                   """ <> (joinWith ", " $ show <$> accounts) <> """
-Most recent block:          """ <> (show recentBlock) <> """
+Most recent block:          """ <> (show recentBlockNumber) <> """
 Account balance:            """ <> (show balance) <> """
-# of coinbase transactions  """ <> (show trCount) <> """
+# of coinbase transactions  """ <> (show accountTxCount) <> """
+# of transactions           """ <> (maybe "No transactions found" show blockTxCount) <> """
 """
-
-main :: ∀ e. Eff (ajax :: AJAX, console :: CONSOLE | e) Unit
-main = let transport = AffjaxTransport "http://127.0.0.1:8545"
-       in launchAff_ $ E.run transport info >>= log

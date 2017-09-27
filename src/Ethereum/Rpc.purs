@@ -4,13 +4,17 @@ module Ethereum.Rpc
   , Request(..)
   , Response(..)
   , AffjaxTransport(..)
+  , AffjaxLoggingTransport(..)
   , class Transport
   , call
   , call0
   ) where
 
 import Prelude
+
 import Control.Monad.Aff (Aff, error, throwError)
+import Control.Monad.Aff.Console (log)
+import Control.Monad.Eff.Console (CONSOLE)
 import Data.Argonaut.Core (Json, jsonEmptyObject)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.?), (.??))
 import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
@@ -18,8 +22,6 @@ import Data.Either (Either(..), either)
 import Data.Maybe (maybe)
 import Network.HTTP.Affjax (AJAX, URL, post)
 import Network.HTTP.StatusCode (StatusCode(..))
-
-newtype AffjaxTransport = AffjaxTransport URL
 
 class Transport c e | c -> e where
   call :: c -> Request -> Aff e (Response Json)
@@ -30,15 +32,34 @@ callParams c m p = call c $ Request { method: m, params: p }
 call0 :: ∀ c e. Transport c e => c -> Method -> Aff e (Response Json)
 call0 c m = call c $ Request { method: m, params: [] }
 
+
+newtype AffjaxTransport = AffjaxTransport URL
 instance affjaxTransport :: Transport AffjaxTransport (ajax :: AJAX | e) where
   call (AffjaxTransport url) req = do
-    { status: (StatusCode statusCode), response: body } <- post url $ encodeJson req
+    let jsonRequest = encodeJson req
+    { status: (StatusCode statusCode), response: body } <- post url jsonRequest
     when (statusCode /= 200) do
       throwError $ error $ "JSON RPC call "
         <> (show req)
         <> " failed with HTTP status code = "
         <> show statusCode
     either (throwError <<< error) pure $ decodeJson body
+
+
+newtype AffjaxLoggingTransport = AffjaxLoggingTransport URL
+instance affjaxLoggingTransport :: Transport AffjaxLoggingTransport (ajax :: AJAX, console :: CONSOLE | e) where
+  call (AffjaxLoggingTransport url) req = do
+    let jsonRequest = encodeJson req
+    log $ ">>> " <> show jsonRequest
+    { status: (StatusCode statusCode), response: body } <- post url jsonRequest
+    log $ "<<< " <> show statusCode <> ": " <> show body
+    when (statusCode /= 200) do
+      throwError $ error $ "JSON RPC call "
+        <> (show req)
+        <> " failed with HTTP status code = "
+        <> show statusCode
+    either (throwError <<< error) pure $ decodeJson body
+
 
 type Method = String
 type Params = Array String

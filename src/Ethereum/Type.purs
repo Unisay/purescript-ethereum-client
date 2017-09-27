@@ -8,7 +8,8 @@ import Data.ByteString (ByteString, isEmpty)
 import Data.Either (Either(..), note)
 import Data.Maybe (maybe)
 import Data.Newtype (class Newtype, unwrap)
-import Ethereum.Text (class ToHex, fromHex, toHex)
+import Data.String (length)
+import Ethereum.Text (class FromHex, class ToHex, fromHex, toHex)
 
 data Network = Mainnet
              | Morden
@@ -27,9 +28,9 @@ instance showNetwork :: Show Network where
 
 
 newtype SyncStatus = SyncStatus {
-  startingBlock :: Block,
-  currentBlock  :: Block,
-  highestBlock  :: Block
+  startingBlock :: BlockNumber,
+  currentBlock  :: BlockNumber,
+  highestBlock  :: BlockNumber
 }
 
 derive instance eqSyncStatus :: Eq SyncStatus
@@ -61,8 +62,9 @@ newtype Address = Address ByteString
 
 instance decodeAddress :: DecodeJson Address where
   decodeJson json = do
-    s <- decodeJson json
-    bs <- note "Failed to decode HEX string" $ fromHex s
+    hex <- decodeJson json
+    when (length hex /= (20 * 2 + 2)) $ Left "Address is expected to contain exactly 20 bytes"
+    bs <- note "Failed to decode HEX string" $ fromHex hex
     when (isEmpty bs) $ Left "Empty address"
     pure $ Address bs
 
@@ -73,20 +75,41 @@ derive instance newtypeAddress :: Newtype Address _
 instance toHexAddress :: ToHex Address where toHex = unwrap >>> toHex
 
 
-newtype Block = Block BigInt
+newtype BlockNumber = BlockNumber BigInt
 
-instance decodeBlock :: DecodeJson Block where
+instance decodeBlockNumber :: DecodeJson BlockNumber where
   decodeJson json = do
-    s <- decodeJson json
-    i <- note "Failed to decode HEX string" $ fromHex s
-    pure $ Block i
+    hex <- decodeJson json
+    bi <- note "Failed to decode HEX number" $ fromHex hex
+    pure $ BlockNumber bi
 
-instance showBlock :: Show Block where
-  show = unwrap >>> toHex >>> append "Block#"
+instance showBlockNumber :: Show BlockNumber where
+  show = unwrap >>> toHex >>> append "BlockNumber#"
 
-derive instance eqBlock :: Eq Block
-derive instance newtypeBlock :: Newtype Block _
-instance toHexBlock :: ToHex Block where toHex = unwrap >>> toHex
+derive instance eqBlockNumber :: Eq BlockNumber
+derive instance newtypeBlockNumber :: Newtype BlockNumber _
+instance toHexBlockNumber :: ToHex BlockNumber where toHex = unwrap >>> toHex
+instance fromHexBlockNumber :: FromHex BlockNumber where
+  fromHex hex = BlockNumber <$> fromHex hex
+
+-- | 32 Bytes - hash of a block
+newtype BlockHash = BlockHash ByteString
+
+instance decodeBlockHash :: DecodeJson BlockHash where
+  decodeJson json = do
+    hex <- decodeJson json
+    when (length hex /= (32 * 2 + 2)) $ Left "Block hash is expected to contain exactly 32 bytes"
+    bs <- note "Failed to decode HEX string" $ fromHex hex
+    pure $ BlockHash bs
+
+instance showBlockHash :: Show BlockHash where
+  show = unwrap >>> toHex >>> append "BlockHash#"
+
+derive instance eqBlockHash :: Eq BlockHash
+derive instance newtypeBlockHash :: Newtype BlockHash _
+instance toHexBlockHash :: ToHex BlockHash where toHex = unwrap >>> toHex
+instance fromHexBlockHash :: FromHex BlockHash where
+  fromHex hex = BlockHash <$> fromHex hex
 
 
 data Tag = Earliest -- the earliest/genesis block

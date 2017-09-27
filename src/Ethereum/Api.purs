@@ -28,17 +28,19 @@ import Control.Monad.Aff (Aff, error, throwError)
 import Control.Monad.Free (Free, foldFree, liftF)
 import Data.Argonaut.Core (Json, isBoolean)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
-import Data.ByteString (ByteString)
+import Data.ByteString as BS
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(Just, Nothing))
+import Data.Traversable (traverse)
 import Ethereum.Rpc as Rpc
 import Ethereum.Text (fromHex, toHex)
-import Ethereum.Type (Address(..), Block(..), Tag(..), Network(..), Quantity(..), SyncStatus, Wei(Wei))
+import Ethereum.Type (Address(..), BlockHash(..), BlockNumber(..), Network(..), Quantity(..), SyncStatus, Tag(..), Wei(Wei))
 
 type Decoder r = Json -> Either String r
+type DefaultBlock = Either BlockNumber Tag
 
 data EthF more = Web3ClientVersion (Decoder String) (String -> more)
-               | Keccak256 ByteString (Decoder ByteString) (ByteString -> more)
+               | Keccak256 BS.ByteString (Decoder BS.ByteString) (BS.ByteString -> more)
                | NetVersion (Decoder Network) (Network -> more)
                | NetListening (Decoder Boolean) (Boolean -> more)
                | NetPeerCount (Decoder Int) (Int -> more)
@@ -49,11 +51,11 @@ data EthF more = Web3ClientVersion (Decoder String) (String -> more)
                | EthHashrate (Decoder Int) (Int -> more)
                | EthGasPrice (Decoder Wei) (Wei -> more)
                | EthAccounts (Decoder (Array Address)) (Array Address -> more)
-               | EthBlockNumber (Decoder Block) (Block -> more)
-               | EthGetBalance Address (Either Block Tag) (Decoder Wei) (Wei -> more)
-               | EthGetStorageAt Address Int (Either Block Tag) (Decoder ByteString) (ByteString -> more)
-               | EthGetTxCount Address (Either Block Tag) (Decoder Quantity) (Quantity -> more)
-               | EthGetBlockTxCount Block (Decoder Quantity) (Quantity -> more)
+               | EthBlockNumber (Decoder BlockNumber) (BlockNumber -> more)
+               | EthGetBalance Address DefaultBlock (Decoder Wei) (Wei -> more)
+               | EthGetStorageAt Address Int DefaultBlock (Decoder BS.ByteString) (BS.ByteString -> more)
+               | EthGetTxCount Address DefaultBlock (Decoder Quantity) (Quantity -> more)
+               | EthGetBlockTxCount BlockHash (Decoder (Maybe Quantity)) (Maybe Quantity -> more)
 
 type Eth a = Free EthF a
 
@@ -62,12 +64,14 @@ web3ClientVersion :: Eth String
 web3ClientVersion = liftF $ Web3ClientVersion decodeJson id
 
 -- | Returns Keccak-256 (not the standardized SHA3-256) of the given data
-keccak256 :: ByteString -> Eth ByteString
-keccak256 s = liftF $ Keccak256 s (decodeJson >=> note "Invalid HEX string" <<< fromHex) id
+keccak256 :: BS.ByteString -> Eth BS.ByteString
+keccak256 s = liftF $ Keccak256 s decoder id
+  where decoder = decodeJson >=> note "Invalid HEX string" <<< fromHex
 
 -- | Current network
 netVersion :: Eth Network
-netVersion = liftF $ NetVersion (decodeJson >>> map parseNetwork) id
+netVersion = liftF $ NetVersion decoder id
+  where decoder = decodeJson >>> map parseNetwork
 
 -- | If client is actively listening for network connections
 netListening :: Eth Boolean
@@ -75,7 +79,8 @@ netListening = liftF $ NetListening decodeJson id
 
 -- | Number of peers currently connected to the client
 netPeerCount :: Eth Int
-netPeerCount = liftF $ NetPeerCount (decodeJson >=> parseSmallInt) id
+netPeerCount = liftF $ NetPeerCount decoder id
+  where decoder = decodeJson >=> parseSmallInt
 
 -- | Current ethereum protocol version
 ethProtocolVersion :: Eth String
@@ -83,7 +88,8 @@ ethProtocolVersion = liftF $ EthProtocolVersion decodeJson id
 
 -- | Syncrhronization status
 ethSyncing :: Eth (Maybe SyncStatus)
-ethSyncing = liftF $ EthSyncing (decodeJson >>> map \(SyncStatusResponse r) -> r) id
+ethSyncing = liftF $ EthSyncing decoder id
+  where decoder = decodeJson >>> map \(SyncStatusResponse r) -> r
 
 -- | Client coinbase address
 ethCoinbase :: Eth Address
@@ -106,32 +112,32 @@ ethAccounts :: Eth (Array Address)
 ethAccounts = liftF $ EthAccounts decodeJson id
 
 -- | The number of most recent block
-ethBlockNumber :: Eth Block
-ethBlockNumber = liftF $ EthBlockNumber decodeJson id
+ethBlockNumber :: Eth BlockNumber
+ethBlockNumber = liftF $ EthBlockNumber decoder id
+  where decoder = decodeJson >=> note "Invalid HEX number" <<< fromHex
 
 -- | The balance of the account of given address
-ethGetBalance :: Address -> Either Block Tag -> Eth Wei
+ethGetBalance :: Address -> DefaultBlock -> Eth Wei
 ethGetBalance address defBlock = liftF $ EthGetBalance address defBlock decodeJson id
 
 -- | The value from a storage position at a given address
-ethGetStorageAt :: Address -> Int -> Either Block Tag -> Eth ByteString
+ethGetStorageAt :: Address -> Int -> DefaultBlock -> Eth BS.ByteString
 ethGetStorageAt address pos defBlock =
-  let decoder = decodeJson >=> note "Invalid HEX string" <<< fromHex
-  in liftF $ EthGetStorageAt address pos defBlock decoder id
+  liftF $ EthGetStorageAt address pos defBlock decoder id
+  where decoder = decodeJson >=> note "Invalid HEX string" <<< fromHex
 
 -- | The number of transactions sent from an address
-ethGetTransactionCount :: Address -> Either Block Tag -> Eth Quantity
+ethGetTransactionCount :: Address -> DefaultBlock -> Eth Quantity
 ethGetTransactionCount address defBlock =
-  liftF $ EthGetTxCount address defBlock decodeQuantity id
+  liftF $ EthGetTxCount address defBlock decoder id
+  where decoder = decodeJson >=> parseQuantity
 
 -- | The number of transactions in a block from a block matching the given block hash
-ethGetBlockTransactionCountByHash :: Block -> Eth Quantity
-ethGetBlockTransactionCountByHash block = liftF $ EthGetBlockTxCount block decodeQuantity id
+ethGetBlockTransactionCountByHash :: BlockHash -> Eth (Maybe Quantity)
+ethGetBlockTransactionCountByHash block =
+  liftF $ EthGetBlockTxCount block decoder id
+  where decoder = (decodeJson :: Decoder (Maybe String)) >=> traverse (parseSmallInt >>> map Quantity)
 
-
-
-decodeQuantity :: Json -> Either String Quantity
-decodeQuantity = decodeJson >=> parseSmallInt >>> map Quantity
 
 -- | Runs Eth monad returning Aff
 run :: ∀ c e a. Rpc.Transport c e => c -> Eth a -> Aff e a
@@ -197,7 +203,7 @@ run = foldFree <<< nt
     unpackRpcResponse (Rpc.Result json) = pure json
     unpackRpcResponse (Rpc.Error code message) = err $ "JSON RPC error (" <> (show code) <> "): " <> message
 
-    packDefaultBlock :: Either Block Tag -> String
+    packDefaultBlock :: DefaultBlock -> String
     packDefaultBlock (Left block) = toHex block
     packDefaultBlock (Right tag) = show tag
 
@@ -212,6 +218,9 @@ run = foldFree <<< nt
 
 parseSmallInt :: String -> Either String Int
 parseSmallInt = note "Failed to parse hex string as int" <<< fromHex
+
+parseQuantity :: String -> Either String Quantity
+parseQuantity = parseSmallInt >>> map Quantity
 
 parseNetwork :: String -> Network
 parseNetwork "1" = Mainnet
