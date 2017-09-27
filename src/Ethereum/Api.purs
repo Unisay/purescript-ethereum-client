@@ -20,6 +20,7 @@ module Ethereum.Api
   , ethGetStorageAt
   , ethGetTransactionCount
   , ethGetBlockTransactionCountByHash
+  , ethGetUncleCountByBlockNumber
   ) where
 
 import Prelude
@@ -56,6 +57,7 @@ data EthF more = Web3ClientVersion (Decoder String) (String -> more)
                | EthGetStorageAt Address Int DefaultBlock (Decoder BS.ByteString) (BS.ByteString -> more)
                | EthGetTxCount Address DefaultBlock (Decoder Quantity) (Quantity -> more)
                | EthGetBlockTxCount BlockHash (Decoder (Maybe Quantity)) (Maybe Quantity -> more)
+               | GetUncleCountByBlockNumber DefaultBlock (Decoder Quantity) (Quantity -> more)
 
 type Eth a = Free EthF a
 
@@ -136,8 +138,12 @@ ethGetTransactionCount address defBlock =
 ethGetBlockTransactionCountByHash :: BlockHash -> Eth (Maybe Quantity)
 ethGetBlockTransactionCountByHash block =
   liftF $ EthGetBlockTxCount block decoder id
-  where decoder = (decodeJson :: Decoder (Maybe String)) >=> traverse (parseSmallInt >>> map Quantity)
+  where decoder = decodeJson >=> traverse (parseSmallInt >>> map Quantity)
 
+-- | The number of uncles in a block from a block matching the given block number
+ethGetUncleCountByBlockNumber :: DefaultBlock -> Eth Quantity
+ethGetUncleCountByBlockNumber defBlock = liftF $ GetUncleCountByBlockNumber defBlock decoder id
+  where decoder = decodeJson >=> parseQuantity
 
 -- | Runs Eth monad returning Aff
 run :: ∀ c e a. Rpc.Transport c e => c -> Eth a -> Aff e a
@@ -196,6 +202,11 @@ run = foldFree <<< nt
     nt cfg (EthGetBlockTxCount block d f) =
       let request = Rpc.Request { method: "eth_getBlockTransactionCountByHash"
                                 , params: [toHex block]
+                                }
+      in Rpc.call cfg request >>= handle d f
+    nt cfg (GetUncleCountByBlockNumber defaultBlock d f) =
+      let request = Rpc.Request { method: "eth_getUncleCountByBlockNumber"
+                                , params: [ packDefaultBlock defaultBlock ]
                                 }
       in Rpc.call cfg request >>= handle d f
 

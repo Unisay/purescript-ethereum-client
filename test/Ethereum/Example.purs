@@ -44,6 +44,7 @@ info = do
   accountTxCount <- E.ethGetTransactionCount coinbase defaultBlock
   let blockHash = unsafePartial $ fromJust $ fromHex "b903239f8543d04b5dc1ba6579132b143087c68db1b2168786408fcbce568238"
   blockTxCount <- E.ethGetBlockTransactionCountByHash blockHash
+  uncleCount <- E.ethGetUncleCountByBlockNumber defaultBlock
   pure $ """
 Network:                    """ <> (show network) <> """
 Is listening:               """ <> (show listening) <> """
@@ -61,4 +62,5 @@ Most recent block:          """ <> (show recentBlockNumber) <> """
 Account balance:            """ <> (show balance) <> """
 # of coinbase transactions  """ <> (show accountTxCount) <> """
 # of transactions           """ <> (maybe "No transactions found" show blockTxCount) <> """
+# of uncles in a block      """ <> (show uncleCount) <> """
 """

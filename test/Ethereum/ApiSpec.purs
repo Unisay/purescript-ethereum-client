@@ -24,16 +24,16 @@ spec = do
         blockHash = BlockHash $ unsafePartial $ fromJust $ fromHex "b903239f8543d04b5dc1ba6579132b143087c68db1b2168786408fcbce568238"
         address = Address $ unsafeByteString "08"
 
-    test "web3_clientVersion" $ do
+    test "web3_clientVersion" do
       let version = "test-client-version"
       actual <- E.run (respondWith version) E.web3ClientVersion
       Assert.equal version actual
 
-    test "eth_syncing false" $ do
+    test "eth_syncing false" do
       actual <- E.run (respondWith jsonFalse) E.ethSyncing
       Assert.equal Nothing actual
 
-    test "eth_syncing status" $ do
+    test "eth_syncing status" do
       let mockResponse = "startingBlock" := "0x1"
                       ~> "currentBlock"  := "0x2"
                       ~> "highestBlock"  := "0x3"
@@ -50,30 +50,35 @@ spec = do
       actual <- E.run (respondWith $ fromString "0x01") E.ethBlockNumber
       Assert.equal blockNumber actual
 
-    test "eth_getBalance" $ do
+    test "eth_getBalance" do
       let eth = E.ethGetBalance address (Right Latest)
       actual <- E.run (respondWith $ fromString "0x03") eth
       Assert.equal (Wei $ fromInt 3) actual
 
-    test "eth_getStorageAt" $ do
+    test "eth_getStorageAt" do
       let eth = E.ethGetStorageAt address 42 (Right Earliest)
       actual <- E.run (respondWith $ fromString "0x010203") eth
       Assert.equal (unsafeByteString "010203") actual
 
-    test "eth_getTransactionCount" $ do
+    test "eth_getTransactionCount" do
       let eth = E.ethGetTransactionCount address (Left blockNumber)
       actual <- E.run (respondWith $ fromString "0x09") eth
       Assert.equal (Quantity 9) actual
 
-    test "eth_getBlockTransactionCountByHash just" $ do
+    test "eth_getBlockTransactionCountByHash just" do
       let eth = E.ethGetBlockTransactionCountByHash blockHash
       actual <- E.run (respondWith $ fromString "0x08") eth
       Assert.equal (Just $ Quantity 8) actual
 
-    test "eth_getBlockTransactionCountByHash nothing" $ do
+    test "eth_getBlockTransactionCountByHash nothing" do
       let eth = E.ethGetBlockTransactionCountByHash blockHash
       actual <- E.run (respondWith jsonNull) eth
       Assert.equal Nothing actual
+
+    test "eth_getUncleCountByBlockNumber" do
+      let eth = E.ethGetUncleCountByBlockNumber (Right Latest)
+      actual <- E.run (respondWith $ fromString "0x08") eth
+      Assert.equal (Quantity 8) actual
 
 newtype TestTransport = TestTransport Json
 
