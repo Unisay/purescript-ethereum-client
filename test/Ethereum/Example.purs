@@ -3,7 +3,10 @@ module Ethereum.Example.Spec where
 import Prelude
 
 import Control.Monad.Aff.Console (log)
+import Control.Monad.Eff (Eff)
+import Control.Monad.Eff.AVar (AVAR)
 import Control.Monad.Eff.Console (CONSOLE)
+import Control.Monad.Eff.Random (RANDOM)
 import Data.ByteString (toUTF8)
 import Data.Either (Either(..))
 import Data.Maybe (fromJust, maybe)
@@ -15,6 +18,17 @@ import Network.HTTP.Affjax (AJAX)
 import Partial.Unsafe (unsafePartial)
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.Assert as Assert
+import Test.Unit.Console (TESTOUTPUT)
+import Test.Unit.Main (runTest)
+
+main :: ∀ e. Eff ( console    :: CONSOLE
+                 , testOutput :: TESTOUTPUT
+                 , avar       :: AVAR
+                 , random     :: RANDOM
+                 , ajax       :: AJAX
+                 | e
+                 ) Unit
+main = runTest spec
 
 spec :: ∀ e. TestSuite ( ajax :: AJAX, console :: CONSOLE | e)
 spec = do

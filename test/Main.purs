@@ -10,7 +10,6 @@ import Network.HTTP.Affjax (AJAX)
 import Test.Unit.Console (TESTOUTPUT)
 import Test.Unit.Main (runTest)
 import Ethereum.Api.Spec as Api
-import Ethereum.Example.Spec as Example
 import Ethereum.Hex.Spec as Hex
 
 
@@ -22,6 +21,5 @@ main :: ∀ e. Eff ( console    :: CONSOLE
                  | e
                  ) Unit
 main = runTest do
-  Example.spec
   Api.spec
   Hex.spec
