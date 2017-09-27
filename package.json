@@ -9,7 +9,7 @@
   "scripts": {
     "scripts": {
       "postinstall": "bower cache clean && bower install"
-    },
+    }
   },
   "repository": {
     "type": "git",
