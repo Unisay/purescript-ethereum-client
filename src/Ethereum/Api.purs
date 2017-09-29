@@ -24,6 +24,7 @@ module Ethereum.Api
   , ethGetUncleCountByBlockHash
   , ethGetUncleCountByBlockNumber
   , ethGetCode
+  , ethSign
   ) where
 
 import Prelude
@@ -37,7 +38,7 @@ import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(Just, Nothing))
 import Data.Traversable (traverse)
 import Ethereum.Text (fromHex, toHex)
-import Ethereum.Type (Address(..), BlockHash(..), BlockNumber(..), Network(..), Quantity(..), SyncStatus, Tag(..), Wei(Wei))
+import Ethereum.Type (Address(..), BlockHash(..), BlockNumber(..), Network(..), Quantity(..), SyncStatus, Tag(..), Wei(Wei), Signature(..))
 import Network.Rpc.Json as Rpc
 
 type Decoder r = Json -> Either String r
@@ -64,7 +65,7 @@ data EthF more = Web3ClientVersion (Decoder String) (String -> more)
                | EthGetUncleCountByBlockHash BlockHash (Decoder (Maybe Quantity)) ((Maybe Quantity) -> more)
                | EthGetUncleCountByBlockNumber DefaultBlock (Decoder (Maybe Quantity)) ((Maybe Quantity) -> more)
                | EthGetCode Address DefaultBlock (Decoder BS.ByteString) (BS.ByteString -> more)
-              --  | EthSign Address BS.ByteString (Decoder Signature) (Signature -> more) -- Maybe
+               | EthSign Address BS.ByteString (Decoder Signature) (Signature -> more) -- Maybe
 
 type Eth a = Free EthF a
 
@@ -75,12 +76,11 @@ web3ClientVersion = liftF $ Web3ClientVersion decodeJson id
 -- | Returns Keccak-256 (not the standardized SHA3-256) of the given data
 keccak256 :: BS.ByteString -> Eth BS.ByteString
 keccak256 s = liftF $ Keccak256 s decoder id
-  where decoder = decodeJson >=> note "Invalid HEX string" <<< fromHex
+  where decoder = decodeJson >=> parseBytes
 
 -- | Current network
 netVersion :: Eth Network
-netVersion = liftF $ NetVersion decoder id
-  where decoder = decodeJson >>> map parseNetwork
+netVersion = liftF $ NetVersion decodeJson id
 
 -- | If client is actively listening for network connections
 netListening :: Eth Boolean
@@ -122,8 +122,7 @@ ethAccounts = liftF $ EthAccounts decodeJson id
 
 -- | Number of most recent block
 ethBlockNumber :: Eth BlockNumber
-ethBlockNumber = liftF $ EthBlockNumber decoder id
-  where decoder = decodeJson >=> note "Invalid HEX number" <<< fromHex
+ethBlockNumber = liftF $ EthBlockNumber decodeJson id
 
 -- | Balance of the account of given address
 ethGetBalance :: Address -> DefaultBlock -> Eth Wei
@@ -170,6 +169,12 @@ ethGetCode :: Address -> DefaultBlock -> Eth BS.ByteString
 ethGetCode address defBlock = liftF $ EthGetCode address defBlock decoder id
   where decoder = decodeJson >=> parseBytes
 
+{-
+     Calculate an Ethereum specific signature with:
+     sign(keccak256("\x19Ethereum Signed Message:\n" + len(message) + message)))
+-}
+ethSign :: Address -> BS.ByteString -> Eth Signature
+ethSign address message = liftF $ EthSign address message decodeJson id
 
 
 -- | Runs Eth monad returning Aff
@@ -259,7 +264,12 @@ run = foldFree <<< nt
                                 , params: [packDefaultBlock defaultBlock]
                                 }
       in Rpc.call cfg request >>= handle d f
-
+    nt cfg (EthSign address message d f) =
+      let request = Rpc.Request { id: 1
+                                , method: "eth_sign"
+                                , params: [toHex address, toHex message]
+                                }
+      in Rpc.call cfg request >>= handle d f
 
 
     call0 :: ∀ r. Rpc.Transport r e => r -> Rpc.Method -> Aff e (Rpc.Response Json)
@@ -290,14 +300,6 @@ parseQuantity = parseSmallInt >>> map Quantity
 
 parseBytes :: String -> Either String BS.ByteString
 parseBytes = note "Failed to parse hex string as bytes" <<< fromHex
-
-parseNetwork :: String -> Network
-parseNetwork "1" = Mainnet
-parseNetwork "2" = Morden
-parseNetwork "3" = Ropsten
-parseNetwork "4" = Rinkeby
-parseNetwork "42" = Kovan
-parseNetwork s = UnknownNet s
 
 newtype SyncStatusResponse = SyncStatusResponse (Maybe SyncStatus)
 

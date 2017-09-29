@@ -26,6 +26,15 @@ instance showNetwork :: Show Network where
   show Kovan = "Kovan Testnet"
   show (UnknownNet s) = "Unknown network: " <> s
 
+instance decodeNetwork :: DecodeJson Network where
+  decodeJson = decodeJson >>> map parseNetwork where
+    parseNetwork :: String -> Network
+    parseNetwork "1" = Mainnet
+    parseNetwork "2" = Morden
+    parseNetwork "3" = Ropsten
+    parseNetwork "4" = Rinkeby
+    parseNetwork "42" = Kovan
+    parseNetwork s = UnknownNet s
 
 newtype SyncStatus = SyncStatus {
   startingBlock :: BlockNumber,
@@ -51,11 +60,21 @@ instance showSyncStatus :: Show SyncStatus where
                       <> "currentBlock = '"  <> (show ss.currentBlock)  <> "', "
                       <> "highestBlock = '"  <> (show ss.highestBlock)  <> "' "
 
+
 newtype Quantity = Quantity Int
+
 derive instance eqQuantity :: Eq Quantity
+
 derive instance newtypeQuantity :: Newtype Quantity _
-instance showQuantity :: Show Quantity where show = unwrap >>> show
-instance toHexQuantity :: ToHex Quantity where toHex = unwrap >>> toHex
+
+instance showQuantity :: Show Quantity where
+  show = unwrap >>> show
+
+instance fromHexQuantity :: FromHex Quantity where
+  fromHex = fromHex >>> map Quantity
+
+instance toHexQuantity :: ToHex Quantity where
+  toHex = unwrap >>> toHex
 
 
 newtype Address = Address ByteString
@@ -72,25 +91,48 @@ instance showAddress :: Show Address where
   show (Address bs) = toHex bs
 
 derive instance newtypeAddress :: Newtype Address _
-instance toHexAddress :: ToHex Address where toHex = unwrap >>> toHex
+
+instance toHexAddress :: ToHex Address where
+  toHex = unwrap >>> toHex >>> append "Address#"
+
+
+newtype Signature = Signature ByteString
+
+derive instance newtypeSignature :: Newtype Signature _
+
+derive instance eqSignature :: Eq Signature
+
+instance decodeSignature :: DecodeJson Signature where
+  decodeJson = decodeJson >=> fromHex >>> note "Failed to decode HEX as Signature" >>> map Signature
+
+instance showSignature :: Show Signature where
+  show = unwrap >>> toHex >>> append "Signature#"
+
+instance fromHexSignature :: FromHex Signature where
+  fromHex = fromHex >>> map Signature
+
+instance toHexSignature :: ToHex Signature where
+  toHex = unwrap >>> toHex
 
 
 newtype BlockNumber = BlockNumber BigInt
 
 instance decodeBlockNumber :: DecodeJson BlockNumber where
-  decodeJson json = do
-    hex <- decodeJson json
-    bi <- note "Failed to decode HEX number" $ fromHex hex
-    pure $ BlockNumber bi
+  decodeJson = decodeJson >=> fromHex >>> note "Failed to decode HEX number" >>> map BlockNumber
 
 instance showBlockNumber :: Show BlockNumber where
   show = unwrap >>> toHex >>> append "BlockNumber#"
 
 derive instance eqBlockNumber :: Eq BlockNumber
+
 derive instance newtypeBlockNumber :: Newtype BlockNumber _
-instance toHexBlockNumber :: ToHex BlockNumber where toHex = unwrap >>> toHex
+
 instance fromHexBlockNumber :: FromHex BlockNumber where
-  fromHex hex = BlockNumber <$> fromHex hex
+  fromHex = fromHex >>> map BlockNumber
+
+instance toHexBlockNumber :: ToHex BlockNumber where
+  toHex = unwrap >>> toHex
+
 
 -- | 32 Bytes - hash of a block
 newtype BlockHash = BlockHash ByteString
@@ -106,10 +148,14 @@ instance showBlockHash :: Show BlockHash where
   show = unwrap >>> toHex >>> append "BlockHash#"
 
 derive instance eqBlockHash :: Eq BlockHash
+
 derive instance newtypeBlockHash :: Newtype BlockHash _
-instance toHexBlockHash :: ToHex BlockHash where toHex = unwrap >>> toHex
+
+instance toHexBlockHash :: ToHex BlockHash where
+  toHex = unwrap >>> toHex
+
 instance fromHexBlockHash :: FromHex BlockHash where
-  fromHex hex = BlockHash <$> fromHex hex
+  fromHex = fromHex >>> map BlockHash
 
 
 data Tag = Earliest -- the earliest/genesis block
@@ -133,6 +179,14 @@ instance decodeWei :: DecodeJson Wei where
     pure $ Wei i
 
 derive instance eqWei :: Eq Wei
+
 derive instance newtypeWei :: Newtype Wei _
-instance showWei :: Show Wei where show = unwrap >>> toString >>> flip append " WEI"
-instance toHex :: ToHex Wei where toHex = unwrap >>> toHex
+
+instance showWei :: Show Wei where
+  show = unwrap >>> toString >>> flip append " WEI"
+
+instance fromHex :: FromHex Wei where
+  fromHex = fromHex >>> map Wei
+
+instance toHex :: ToHex Wei where
+  toHex = unwrap >>> toHex

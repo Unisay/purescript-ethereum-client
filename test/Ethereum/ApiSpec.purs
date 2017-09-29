@@ -7,7 +7,7 @@ import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
 import Data.BigInt (fromInt)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(Just, Nothing), fromJust)
-import Ethereum.Api (Address(Address), BlockHash(BlockHash), BlockNumber(BlockNumber), Quantity(Quantity), Tag(Latest, Earliest), Wei(Wei))
+import Ethereum.Api (Address(Address), BlockHash(BlockHash), BlockNumber(BlockNumber), Quantity(Quantity), Signature(..), Tag(Latest, Earliest), Wei(Wei))
 import Ethereum.Api as E
 import Ethereum.Text (fromHex)
 import Ethereum.Type (SyncStatus(..))
@@ -115,6 +115,10 @@ spec = do
       actual <- E.run (respondWith $ fromString "0x010203") eth
       Assert.equal (unsafeByteString "010203") actual
 
+    test "eth_sign" do
+      let eth = E.ethSign address (unsafeByteString "123456")
+      actual <- E.run (respondWith $ fromString "0x010203") eth
+      Assert.equal (Signature $ unsafeByteString "010203") actual
 
 
 newtype TestTransport = TestTransport Json
