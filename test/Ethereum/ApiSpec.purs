@@ -83,7 +83,7 @@ spec = do
 newtype TestTransport = TestTransport Json
 
 instance testTransport :: Rpc.Transport TestTransport e where
-  call (TestTransport response) req = pure $ Rpc.Result response
+  call (TestTransport response) req = pure $ Rpc.Response (pure response)
 
 respondWith :: ∀ r. EncodeJson r => r -> TestTransport
 respondWith r = TestTransport $ encodeJson r
