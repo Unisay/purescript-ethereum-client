@@ -214,8 +214,8 @@ run = foldFree <<< nt
     call0 c m = Rpc.call c $ Rpc.Request { id: 1, method: m, params: [] }
 
     unpackRpcResponse :: ∀ fx. Rpc.Response Json -> Aff fx Json
-    unpackRpcResponse (Rpc.Result json) = pure json
-    unpackRpcResponse (Rpc.Error code message) = err $ "JSON RPC error (" <> (show code) <> "): " <> message
+    unpackRpcResponse (Rpc.Response (Right json)) = pure json
+    unpackRpcResponse (Rpc.Response (Left (Rpc.Error e))) = err $ "JSON RPC error (" <> (show e.code) <> "): " <> e.message
 
     packDefaultBlock :: DefaultBlock -> String
     packDefaultBlock (Left block) = toHex block
