@@ -9,7 +9,7 @@ import Data.Either (Either(..))
 import Data.Maybe (Maybe(Just, Nothing), fromJust)
 import Ethereum.Api (Address(..), BlockHash(..), BlockNumber(..), Quantity(..), Tag(..), Wei(..))
 import Ethereum.Api as E
-import Ethereum.Rpc as Rpc
+import Network.Rpc.Json as Rpc
 import Ethereum.Text (fromHex)
 import Ethereum.Type (SyncStatus(..))
 import Partial.Unsafe (unsafePartial)

@@ -33,7 +33,7 @@ import Data.ByteString as BS
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(Just, Nothing))
 import Data.Traversable (traverse)
-import Ethereum.Rpc as Rpc
+import Network.Rpc.Json as Rpc
 import Ethereum.Text (fromHex, toHex)
 import Ethereum.Type (Address(..), BlockHash(..), BlockNumber(..), Network(..), Quantity(..), SyncStatus, Tag(..), Wei(Wei))
 
@@ -151,36 +151,36 @@ run = foldFree <<< nt
   where
     nt :: Rpc.Transport c e => c -> EthF ~> Aff e
     nt cfg (Web3ClientVersion d f) =
-      Rpc.call0 cfg "web3_clientVersion" >>= handle d f
+      call0 cfg "web3_clientVersion" >>= handle d f
     nt cfg (Keccak256 s d f) =
-      let request = Rpc.Request { method: "web3_sha3", params: [toHex s] }
+      let request = Rpc.Request { id: 1, method: "web3_sha3", params: [toHex s] }
       in Rpc.call cfg request >>= handle d f
     nt cfg (NetVersion d f) =
-      Rpc.call0 cfg "net_version" >>= handle d f
+      call0 cfg "net_version" >>= handle d f
     nt cfg (NetListening d f) =
-      Rpc.call0 cfg "net_listening" >>= handle d f
+      call0 cfg "net_listening" >>= handle d f
     nt cfg (NetPeerCount d f) =
-      Rpc.call0 cfg "net_peerCount" >>= handle d f
+      call0 cfg "net_peerCount" >>= handle d f
     nt cfg (EthProtocolVersion d f) =
-      Rpc.call0 cfg "eth_protocolVersion" >>= handle d f
+      call0 cfg "eth_protocolVersion" >>= handle d f
     nt cfg (EthSyncing d f) =
-      Rpc.call0 cfg "eth_syncing" >>= handle d f
+      call0 cfg "eth_syncing" >>= handle d f
     nt cfg (EthCoinbase d f) =
-      Rpc.call0 cfg "eth_coinbase" >>= handle d f
+      call0 cfg "eth_coinbase" >>= handle d f
     nt cfg (EthMining d f) =
-      Rpc.call0 cfg "eth_mining" >>= handle d f
+      call0 cfg "eth_mining" >>= handle d f
     nt cfg (EthHashrate d f) =
-      Rpc.call0 cfg "eth_hashrate" >>= handle d f
+      call0 cfg "eth_hashrate" >>= handle d f
     nt cfg (EthGasPrice d f) =
-      Rpc.call0 cfg "eth_gasPrice" >>= handle d f
+      call0 cfg "eth_gasPrice" >>= handle d f
     nt cfg (EthAccounts d f) =
-      Rpc.call0 cfg "eth_accounts" >>= handle d f
+      call0 cfg "eth_accounts" >>= handle d f
     nt cfg (EthBlockNumber d f) =
-      Rpc.call0 cfg "eth_blockNumber" >>= handle d f
+      call0 cfg "eth_blockNumber" >>= handle d f
     nt cfg (EthGetBalance address defaultBlock d f) =
       let param1 = toHex address
           param2 = packDefaultBlock defaultBlock
-          request = Rpc.Request { method: "eth_getBalance"
+          request = Rpc.Request { id: 1, method: "eth_getBalance"
                                 , params: [param1, param2]
                                 }
       in Rpc.call cfg request >>= handle d f
@@ -188,27 +188,30 @@ run = foldFree <<< nt
       let param1 = toHex address
           param2 = toHex pos
           param3 = packDefaultBlock defaultBlock
-          request = Rpc.Request { method: "eth_getStorageAt"
+          request = Rpc.Request { id: 1, method: "eth_getStorageAt"
                                 , params: [param1, param2, param3]
                                 }
       in Rpc.call cfg request >>= handle d f
     nt cfg (EthGetTxCount address defaultBlock d f) =
       let param1 = toHex address
           param2 = packDefaultBlock defaultBlock
-          request = Rpc.Request { method: "eth_getTransactionCount"
+          request = Rpc.Request { id: 1, method: "eth_getTransactionCount"
                                 , params: [param1, param2]
                                 }
       in Rpc.call cfg request >>= handle d f
     nt cfg (EthGetBlockTxCount block d f) =
-      let request = Rpc.Request { method: "eth_getBlockTransactionCountByHash"
+      let request = Rpc.Request { id: 1, method: "eth_getBlockTransactionCountByHash"
                                 , params: [toHex block]
                                 }
       in Rpc.call cfg request >>= handle d f
     nt cfg (GetUncleCountByBlockNumber defaultBlock d f) =
-      let request = Rpc.Request { method: "eth_getUncleCountByBlockNumber"
+      let request = Rpc.Request { id: 1, method: "eth_getUncleCountByBlockNumber"
                                 , params: [ packDefaultBlock defaultBlock ]
                                 }
       in Rpc.call cfg request >>= handle d f
+
+    call0 :: ∀ r. Rpc.Transport r e => r -> Rpc.Method -> Aff e (Rpc.Response Json)
+    call0 c m = Rpc.call c $ Rpc.Request { id: 1, method: m, params: [] }
 
     unpackRpcResponse :: ∀ fx. Rpc.Response Json -> Aff fx Json
     unpackRpcResponse (Rpc.Result json) = pure json
