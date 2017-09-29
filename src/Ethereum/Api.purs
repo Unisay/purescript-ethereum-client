@@ -56,14 +56,15 @@ data EthF more = Web3ClientVersion (Decoder String) (String -> more)
                | EthGasPrice (Decoder Wei) (Wei -> more)
                | EthAccounts (Decoder (Array Address)) (Array Address -> more)
                | EthBlockNumber (Decoder BlockNumber) (BlockNumber -> more)
-               | EthGetBalance Address DefaultBlock (Decoder (Maybe Wei)) ((Maybe Wei) -> more)
+               | EthGetBalance Address DefaultBlock (Decoder Wei) (Wei -> more)
                | EthGetStorageAt Address Int DefaultBlock (Decoder BS.ByteString) (BS.ByteString -> more)
                | EthGetTxCount Address DefaultBlock (Decoder (Maybe Quantity)) ((Maybe Quantity) -> more)
                | EthGetBlockTxCountByHash BlockHash (Decoder (Maybe Quantity)) (Maybe Quantity -> more)
                | EthGetBlockTxCountByNumber DefaultBlock (Decoder (Maybe Quantity)) (Maybe Quantity -> more)
                | EthGetUncleCountByBlockHash BlockHash (Decoder (Maybe Quantity)) ((Maybe Quantity) -> more)
                | EthGetUncleCountByBlockNumber DefaultBlock (Decoder (Maybe Quantity)) ((Maybe Quantity) -> more)
-               | EthGetCode Address DefaultBlock (Decoder (Maybe BS.ByteString)) ((Maybe BS.ByteString) -> more)
+               | EthGetCode Address DefaultBlock (Decoder BS.ByteString) (BS.ByteString -> more)
+              --  | EthSign Address BS.ByteString (Decoder Signature) (Signature -> more) -- Maybe
 
 type Eth a = Free EthF a
 
@@ -125,7 +126,7 @@ ethBlockNumber = liftF $ EthBlockNumber decoder id
   where decoder = decodeJson >=> note "Invalid HEX number" <<< fromHex
 
 -- | Balance of the account of given address
-ethGetBalance :: Address -> DefaultBlock -> Eth (Maybe Wei)
+ethGetBalance :: Address -> DefaultBlock -> Eth Wei
 ethGetBalance address defBlock = liftF $ EthGetBalance address defBlock decodeJson id
 
 -- | Value from a storage position at a given address
@@ -165,9 +166,9 @@ ethGetUncleCountByBlockNumber defBlock =
   where decoder = decodeJson >=> traverse parseQuantity
 
 -- | Code at a given address
-ethGetCode :: Address -> DefaultBlock -> Eth (Maybe BS.ByteString)
+ethGetCode :: Address -> DefaultBlock -> Eth BS.ByteString
 ethGetCode address defBlock = liftF $ EthGetCode address defBlock decoder id
-  where decoder = decodeJson >=> traverse parseBytes
+  where decoder = decodeJson >=> parseBytes
 
 
 

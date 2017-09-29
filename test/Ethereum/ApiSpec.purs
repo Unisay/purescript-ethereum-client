@@ -53,12 +53,7 @@ spec = do
     test "eth_getBalance" do
       let eth = E.ethGetBalance address (Right Latest)
       actual <- E.run (respondWith $ fromString "0x03") eth
-      Assert.equal (Just $ Wei $ fromInt 3) actual
-
-    test "eth_getBalance null" do
-      let eth = E.ethGetBalance address (Right Latest)
-      actual <- E.run (respondWith jsonNull) eth
-      Assert.equal Nothing actual
+      Assert.equal (Wei $ fromInt 3) actual
 
     test "eth_getStorageAt" do
       let eth = E.ethGetStorageAt address 42 (Right Earliest)
@@ -118,12 +113,7 @@ spec = do
     test "eth_getCode" do
       let eth = E.ethGetCode address (Right Latest)
       actual <- E.run (respondWith $ fromString "0x010203") eth
-      Assert.equal (Just $ unsafeByteString "010203") actual
-
-    test "eth_getCode null" do
-      let eth = E.ethGetCode address (Right Latest)
-      actual <- E.run (respondWith jsonNull) eth
-      Assert.equal Nothing actual
+      Assert.equal (unsafeByteString "010203") actual
 
 
 
