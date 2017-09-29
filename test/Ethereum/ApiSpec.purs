@@ -7,11 +7,11 @@ import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
 import Data.BigInt (fromInt)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(Just, Nothing), fromJust)
-import Ethereum.Api (Address(..), BlockHash(..), BlockNumber(..), Quantity(..), Tag(..), Wei(..))
+import Ethereum.Api (Address(Address), BlockHash(BlockHash), BlockNumber(BlockNumber), Quantity(Quantity), Tag(Latest, Earliest), Wei(Wei))
 import Ethereum.Api as E
-import Network.Rpc.Json as Rpc
 import Ethereum.Text (fromHex)
 import Ethereum.Type (SyncStatus(..))
+import Network.Rpc.Json as Rpc
 import Partial.Unsafe (unsafePartial)
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.Assert as Assert
@@ -53,7 +53,12 @@ spec = do
     test "eth_getBalance" do
       let eth = E.ethGetBalance address (Right Latest)
       actual <- E.run (respondWith $ fromString "0x03") eth
-      Assert.equal (Wei $ fromInt 3) actual
+      Assert.equal (Just $ Wei $ fromInt 3) actual
+
+    test "eth_getBalance null" do
+      let eth = E.ethGetBalance address (Right Latest)
+      actual <- E.run (respondWith jsonNull) eth
+      Assert.equal Nothing actual
 
     test "eth_getStorageAt" do
       let eth = E.ethGetStorageAt address 42 (Right Earliest)
@@ -63,22 +68,64 @@ spec = do
     test "eth_getTransactionCount" do
       let eth = E.ethGetTransactionCount address (Left blockNumber)
       actual <- E.run (respondWith $ fromString "0x09") eth
-      Assert.equal (Quantity 9) actual
+      Assert.equal (Just $ Quantity 9) actual
 
-    test "eth_getBlockTransactionCountByHash just" do
+    test "eth_getTransactionCount null" do
+      let eth = E.ethGetTransactionCount address (Left blockNumber)
+      actual <- E.run (respondWith jsonNull) eth
+      Assert.equal Nothing actual
+
+    test "eth_getBlockTransactionCountByHash" do
       let eth = E.ethGetBlockTransactionCountByHash blockHash
       actual <- E.run (respondWith $ fromString "0x08") eth
       Assert.equal (Just $ Quantity 8) actual
 
-    test "eth_getBlockTransactionCountByHash nothing" do
+    test "eth_getBlockTransactionCountByHash null" do
       let eth = E.ethGetBlockTransactionCountByHash blockHash
+      actual <- E.run (respondWith jsonNull) eth
+      Assert.equal Nothing actual
+
+    test "eth_getBlockTransactionCountByNumber" do
+      let eth = E.ethGetBlockTransactionCountByNumber (Right Latest)
+      actual <- E.run (respondWith $ fromString "0x08") eth
+      Assert.equal (Just $ Quantity 8) actual
+
+    test "eth_getBlockTransactionCountByNumber null" do
+      let eth = E.ethGetBlockTransactionCountByNumber (Right Earliest)
+      actual <- E.run (respondWith jsonNull) eth
+      Assert.equal Nothing actual
+
+    test "eth_getUncleCountByBlockHash" do
+      let eth = E.ethGetUncleCountByBlockHash blockHash
+      actual <- E.run (respondWith $ fromString "0x08") eth
+      Assert.equal (Just $ Quantity 8) actual
+
+    test "eth_getUncleCountByBlockHash null" do
+      let eth = E.ethGetUncleCountByBlockHash blockHash
       actual <- E.run (respondWith jsonNull) eth
       Assert.equal Nothing actual
 
     test "eth_getUncleCountByBlockNumber" do
       let eth = E.ethGetUncleCountByBlockNumber (Right Latest)
       actual <- E.run (respondWith $ fromString "0x08") eth
-      Assert.equal (Quantity 8) actual
+      Assert.equal (Just $ Quantity 8) actual
+
+    test "eth_getUncleCountByBlockNumber null" do
+      let eth = E.ethGetUncleCountByBlockNumber (Right Latest)
+      actual <- E.run (respondWith jsonNull) eth
+      Assert.equal Nothing actual
+
+    test "eth_getCode" do
+      let eth = E.ethGetCode address (Right Latest)
+      actual <- E.run (respondWith $ fromString "0x010203") eth
+      Assert.equal (Just $ unsafeByteString "010203") actual
+
+    test "eth_getCode null" do
+      let eth = E.ethGetCode address (Right Latest)
+      actual <- E.run (respondWith jsonNull) eth
+      Assert.equal Nothing actual
+
+
 
 newtype TestTransport = TestTransport Json
 

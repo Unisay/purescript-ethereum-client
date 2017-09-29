@@ -20,7 +20,10 @@ module Ethereum.Api
   , ethGetStorageAt
   , ethGetTransactionCount
   , ethGetBlockTransactionCountByHash
+  , ethGetBlockTransactionCountByNumber
+  , ethGetUncleCountByBlockHash
   , ethGetUncleCountByBlockNumber
+  , ethGetCode
   ) where
 
 import Prelude
@@ -33,9 +36,9 @@ import Data.ByteString as BS
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(Just, Nothing))
 import Data.Traversable (traverse)
-import Network.Rpc.Json as Rpc
 import Ethereum.Text (fromHex, toHex)
 import Ethereum.Type (Address(..), BlockHash(..), BlockNumber(..), Network(..), Quantity(..), SyncStatus, Tag(..), Wei(Wei))
+import Network.Rpc.Json as Rpc
 
 type Decoder r = Json -> Either String r
 type DefaultBlock = Either BlockNumber Tag
@@ -53,11 +56,14 @@ data EthF more = Web3ClientVersion (Decoder String) (String -> more)
                | EthGasPrice (Decoder Wei) (Wei -> more)
                | EthAccounts (Decoder (Array Address)) (Array Address -> more)
                | EthBlockNumber (Decoder BlockNumber) (BlockNumber -> more)
-               | EthGetBalance Address DefaultBlock (Decoder Wei) (Wei -> more)
+               | EthGetBalance Address DefaultBlock (Decoder (Maybe Wei)) ((Maybe Wei) -> more)
                | EthGetStorageAt Address Int DefaultBlock (Decoder BS.ByteString) (BS.ByteString -> more)
-               | EthGetTxCount Address DefaultBlock (Decoder Quantity) (Quantity -> more)
-               | EthGetBlockTxCount BlockHash (Decoder (Maybe Quantity)) (Maybe Quantity -> more)
-               | GetUncleCountByBlockNumber DefaultBlock (Decoder Quantity) (Quantity -> more)
+               | EthGetTxCount Address DefaultBlock (Decoder (Maybe Quantity)) ((Maybe Quantity) -> more)
+               | EthGetBlockTxCountByHash BlockHash (Decoder (Maybe Quantity)) (Maybe Quantity -> more)
+               | EthGetBlockTxCountByNumber DefaultBlock (Decoder (Maybe Quantity)) (Maybe Quantity -> more)
+               | EthGetUncleCountByBlockHash BlockHash (Decoder (Maybe Quantity)) ((Maybe Quantity) -> more)
+               | EthGetUncleCountByBlockNumber DefaultBlock (Decoder (Maybe Quantity)) ((Maybe Quantity) -> more)
+               | EthGetCode Address DefaultBlock (Decoder (Maybe BS.ByteString)) ((Maybe BS.ByteString) -> more)
 
 type Eth a = Free EthF a
 
@@ -113,37 +119,57 @@ ethGasPrice = liftF $ EthGasPrice decodeJson id
 ethAccounts :: Eth (Array Address)
 ethAccounts = liftF $ EthAccounts decodeJson id
 
--- | The number of most recent block
+-- | Number of most recent block
 ethBlockNumber :: Eth BlockNumber
 ethBlockNumber = liftF $ EthBlockNumber decoder id
   where decoder = decodeJson >=> note "Invalid HEX number" <<< fromHex
 
--- | The balance of the account of given address
-ethGetBalance :: Address -> DefaultBlock -> Eth Wei
+-- | Balance of the account of given address
+ethGetBalance :: Address -> DefaultBlock -> Eth (Maybe Wei)
 ethGetBalance address defBlock = liftF $ EthGetBalance address defBlock decodeJson id
 
--- | The value from a storage position at a given address
+-- | Value from a storage position at a given address
 ethGetStorageAt :: Address -> Int -> DefaultBlock -> Eth BS.ByteString
 ethGetStorageAt address pos defBlock =
   liftF $ EthGetStorageAt address pos defBlock decoder id
-  where decoder = decodeJson >=> note "Invalid HEX string" <<< fromHex
+  where decoder = decodeJson >=> parseBytes
 
--- | The number of transactions sent from an address
-ethGetTransactionCount :: Address -> DefaultBlock -> Eth Quantity
+-- | Number of transactions sent from an address
+ethGetTransactionCount :: Address -> DefaultBlock -> Eth (Maybe Quantity)
 ethGetTransactionCount address defBlock =
   liftF $ EthGetTxCount address defBlock decoder id
-  where decoder = decodeJson >=> parseQuantity
+  where decoder = decodeJson >=> traverse parseQuantity
 
--- | The number of transactions in a block from a block matching the given block hash
+-- | Number of transactions in a block from a block matching the given block hash
 ethGetBlockTransactionCountByHash :: BlockHash -> Eth (Maybe Quantity)
 ethGetBlockTransactionCountByHash block =
-  liftF $ EthGetBlockTxCount block decoder id
-  where decoder = decodeJson >=> traverse (parseSmallInt >>> map Quantity)
+  liftF $ EthGetBlockTxCountByHash block decoder id
+  where decoder = decodeJson >=> traverse parseQuantity
 
--- | The number of uncles in a block from a block matching the given block number
-ethGetUncleCountByBlockNumber :: DefaultBlock -> Eth Quantity
-ethGetUncleCountByBlockNumber defBlock = liftF $ GetUncleCountByBlockNumber defBlock decoder id
-  where decoder = decodeJson >=> parseQuantity
+-- | Number of transactions in a block from a block matching the given block number
+ethGetBlockTransactionCountByNumber :: DefaultBlock -> Eth (Maybe Quantity)
+ethGetBlockTransactionCountByNumber block =
+  liftF $ EthGetBlockTxCountByNumber block decoder id
+  where decoder = decodeJson >=> traverse parseQuantity
+
+-- | Number of uncles in a block from a block matching the given block hash
+ethGetUncleCountByBlockHash :: BlockHash -> Eth (Maybe Quantity)
+ethGetUncleCountByBlockHash blockHash =
+  liftF $ EthGetUncleCountByBlockHash blockHash decoder id
+  where decoder = decodeJson >=> traverse parseQuantity
+
+-- | Number of uncles in a block from a block matching the given block number
+ethGetUncleCountByBlockNumber :: DefaultBlock -> Eth (Maybe Quantity)
+ethGetUncleCountByBlockNumber defBlock =
+  liftF $ EthGetUncleCountByBlockNumber defBlock decoder id
+  where decoder = decodeJson >=> traverse parseQuantity
+
+-- | Code at a given address
+ethGetCode :: Address -> DefaultBlock -> Eth (Maybe BS.ByteString)
+ethGetCode address defBlock = liftF $ EthGetCode address defBlock decoder id
+  where decoder = decodeJson >=> traverse parseBytes
+
+
 
 -- | Runs Eth monad returning Aff
 run :: ∀ c e a. Rpc.Transport c e => c -> Eth a -> Aff e a
@@ -180,7 +206,8 @@ run = foldFree <<< nt
     nt cfg (EthGetBalance address defaultBlock d f) =
       let param1 = toHex address
           param2 = packDefaultBlock defaultBlock
-          request = Rpc.Request { id: 1, method: "eth_getBalance"
+          request = Rpc.Request { id: 1
+                                , method: "eth_getBalance"
                                 , params: [param1, param2]
                                 }
       in Rpc.call cfg request >>= handle d f
@@ -188,27 +215,51 @@ run = foldFree <<< nt
       let param1 = toHex address
           param2 = toHex pos
           param3 = packDefaultBlock defaultBlock
-          request = Rpc.Request { id: 1, method: "eth_getStorageAt"
+          request = Rpc.Request { id: 1
+                                , method: "eth_getStorageAt"
                                 , params: [param1, param2, param3]
                                 }
       in Rpc.call cfg request >>= handle d f
     nt cfg (EthGetTxCount address defaultBlock d f) =
       let param1 = toHex address
           param2 = packDefaultBlock defaultBlock
-          request = Rpc.Request { id: 1, method: "eth_getTransactionCount"
+          request = Rpc.Request { id: 1
+                                , method: "eth_getTransactionCount"
                                 , params: [param1, param2]
                                 }
       in Rpc.call cfg request >>= handle d f
-    nt cfg (EthGetBlockTxCount block d f) =
-      let request = Rpc.Request { id: 1, method: "eth_getBlockTransactionCountByHash"
-                                , params: [toHex block]
+    nt cfg (EthGetBlockTxCountByHash blockHash d f) =
+      let request = Rpc.Request { id: 1
+                                , method: "eth_getBlockTransactionCountByHash"
+                                , params: [toHex blockHash]
                                 }
       in Rpc.call cfg request >>= handle d f
-    nt cfg (GetUncleCountByBlockNumber defaultBlock d f) =
-      let request = Rpc.Request { id: 1, method: "eth_getUncleCountByBlockNumber"
-                                , params: [ packDefaultBlock defaultBlock ]
+    nt cfg (EthGetBlockTxCountByNumber defaultBlock d f) =
+      let request = Rpc.Request { id: 1
+                                , method: "eth_getBlockTransactionCountByNumber"
+                                , params: [packDefaultBlock defaultBlock]
                                 }
       in Rpc.call cfg request >>= handle d f
+    nt cfg (EthGetUncleCountByBlockHash blockHash d f) =
+      let request = Rpc.Request { id: 1
+                                , method: "eth_getUncleCountByBlockHash"
+                                , params: [toHex blockHash]
+                                }
+      in Rpc.call cfg request >>= handle d f
+    nt cfg (EthGetUncleCountByBlockNumber defaultBlock d f) =
+      let request = Rpc.Request { id: 1
+                                , method: "eth_getUncleCountByBlockNumber"
+                                , params: [packDefaultBlock defaultBlock]
+                                }
+      in Rpc.call cfg request >>= handle d f
+    nt cfg (EthGetCode address defaultBlock d f) =
+      let request = Rpc.Request { id: 1
+                                , method: "eth_getCode"
+                                , params: [packDefaultBlock defaultBlock]
+                                }
+      in Rpc.call cfg request >>= handle d f
+
+
 
     call0 :: ∀ r. Rpc.Transport r e => r -> Rpc.Method -> Aff e (Rpc.Response Json)
     call0 c m = Rpc.call c $ Rpc.Request { id: 1, method: m, params: [] }
@@ -235,6 +286,9 @@ parseSmallInt = note "Failed to parse hex string as int" <<< fromHex
 
 parseQuantity :: String -> Either String Quantity
 parseQuantity = parseSmallInt >>> map Quantity
+
+parseBytes :: String -> Either String BS.ByteString
+parseBytes = note "Failed to parse hex string as bytes" <<< fromHex
 
 parseNetwork :: String -> Network
 parseNetwork "1" = Mainnet
