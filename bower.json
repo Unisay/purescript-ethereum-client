@@ -1,11 +1,16 @@
 {
-  "name": "pureum",
+  "name": "purescript-ethereum-client",
+  "license": "MIT",
   "ignore": [
     "**/.*",
     "node_modules",
     "bower_components",
     "output"
   ],
+  "repository": {
+     "type": "git",
+     "url": "git://github.com/Unisay/purescript-ethereum-client.git"
+   },
   "dependencies": {
     "purescript-prelude": "^3.1.0",
     "purescript-console": "^3.0.0",
