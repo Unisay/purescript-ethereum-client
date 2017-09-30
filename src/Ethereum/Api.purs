@@ -25,17 +25,19 @@ module Ethereum.Api
   , ethGetUncleCountByBlockNumber
   , ethGetCode
   , ethSign
+  , ethSendTransaction
   ) where
 
 import Prelude
 
 import Control.Monad.Aff (Aff, error, throwError)
 import Control.Monad.Free (Free, foldFree, liftF)
-import Data.Argonaut.Core (Json, isBoolean)
+import Data.Argonaut.Core (Json, isBoolean, stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
+import Data.Argonaut.Encode (encodeJson)
 import Data.ByteString as B
 import Data.Either (Either(Right, Left), either)
-import Data.Maybe (Maybe(Just, Nothing))
+import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
 import Ethereum.Text (fromHex, toHex)
 import Ethereum.Type as E
@@ -65,7 +67,8 @@ data EthF more = Web3ClientVersion (Decoder String) (String -> more)
                | EthGetUncleCountByBlockHash E.BlockHash (Decoder (Maybe E.Quantity)) ((Maybe E.Quantity) -> more)
                | EthGetUncleCountByBlockNumber DefaultBlock (Decoder (Maybe E.Quantity)) ((Maybe E.Quantity) -> more)
                | EthGetCode E.Address DefaultBlock (Decoder E.Code) (E.Code -> more)
-               | EthSign E.Address B.ByteString (Decoder E.Signature) (E.Signature -> more) -- Maybe
+               | EthSign E.Address B.ByteString (Decoder E.Signature) (E.Signature -> more)
+               | EthSendTransaction E.Transaction (Decoder (Maybe E.TxHash)) (Maybe E.TxHash -> more)
 
 type Eth a = Free EthF a
 
@@ -174,6 +177,16 @@ ethGetCode address defBlock =
 ethSign :: E.Address -> B.ByteString -> Eth E.Signature
 ethSign address message = liftF $ EthSign address message decodeJson id
 
+-- | Creates new message call transaction or a contract creation, if the data field contains code
+ethSendTransaction :: E.Transaction -> Eth (Maybe E.TxHash)
+ethSendTransaction tx =
+  liftF $ EthSendTransaction tx decoder id
+  where decoder json = do
+          s <- decodeJson json
+          if (s == "0x0")
+            then pure Nothing
+            else Just <$> fromHex s
+
 
 -- | Runs Eth monad returning Aff
 run :: ∀ c e a. Rpc.Transport c e => c -> Eth a -> Aff e a
@@ -268,6 +281,12 @@ run = foldFree <<< nt
                                 , params: [toHex address, toHex message]
                                 }
       in Rpc.call cfg request >>= handle d f
+    nt cfg (EthSendTransaction tx d f) =
+      let request = Rpc.Request { id: 1
+                                , method: "eth_sendTransaction"
+                                , params: [stringify $ encodeJson tx]
+                                }
+      in Rpc.call cfg request >>= handle d f
 
 
     call0 :: ∀ r. Rpc.Transport r e => r -> Rpc.Method -> Aff e (Rpc.Response Json)
@@ -275,7 +294,8 @@ run = foldFree <<< nt
 
     unpackRpcResponse :: ∀ fx. Rpc.Response Json -> Aff fx Json
     unpackRpcResponse (Rpc.Response (Right json)) = pure json
-    unpackRpcResponse (Rpc.Response (Left (Rpc.Error e))) = err $ "JSON RPC error (" <> (show e.code) <> "): " <> e.message
+    unpackRpcResponse (Rpc.Response (Left (Rpc.Error e))) =
+      err $ "JSON RPC error (" <> (show e.code) <> "): " <> e.message
 
     packDefaultBlock :: DefaultBlock -> String
     packDefaultBlock (Left block) = toHex block

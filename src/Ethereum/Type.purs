@@ -13,19 +13,26 @@ module Ethereum.Type
   , mkKeccak256
   , BlockHash
   , mkBlockHash
+  , TxHash
+  , mkTxHash
+  , Abi(..)
   , Code(..)
   , Bytes(..)
   , Tag(..)
   , Wei(..)
+  , Transaction
   ) where
 
 import Prelude
 
+import Data.Argonaut.Core (jsonEmptyObject, stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.?))
+import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
 import Data.Bifunctor (lmap)
 import Data.BigInt as I
 import Data.ByteString as B
 import Data.Either (Either(Right, Left))
+import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype, unwrap)
 import Ethereum.Text (class FromHex, class ToHex, fromHex, toHex)
 
@@ -52,6 +59,8 @@ instance decodeJsonBytes :: DecodeJson Bytes where
                >=> fromHex >>> lmap (append "Failed to decode Bytes")
                >>> map Bytes
 
+instance encodeJsonBytes :: EncodeJson Bytes where
+  encodeJson = unwrap >>> toHex >>> encodeJson
 
 data Network = Mainnet
              | Morden
@@ -118,16 +127,19 @@ derive instance newtypeQuantity :: Newtype Quantity _
 instance showQuantity :: Show Quantity where
   show = unwrap >>> show
 
-instance decodeJsonQuantity :: DecodeJson Quantity where
-  decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode Quantity: ")
-               >=> mkQuantity
-
 instance fromHexQuantity :: FromHex Quantity where
   fromHex = fromHex >>> map Quantity
 
 instance toHexQuantity :: ToHex Quantity where
   toHex = unwrap >>> toHex
+
+instance decodeJsonQuantity :: DecodeJson Quantity where
+  decodeJson = decodeJson
+               >=> fromHex >>> lmap (append "Failed to decode Quantity: ")
+               >=> mkQuantity
+
+instance encodeJsonQuantity :: EncodeJson Quantity where
+  encodeJson = unwrap >>> encodeJson
 
 
 -- | Ethereum address (20 bytes)
@@ -140,21 +152,26 @@ mkAddress (Bytes bs) =
   then Left "Address is expected to be exactly 20 bytes"
   else Right $ Address (Bytes bs)
 
-instance decodeAddress :: DecodeJson Address where
-  decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode Address")
-               >=> mkAddress
+derive instance newtypeAddress :: Newtype Address _
+
+derive instance eqAddress :: Eq Address
 
 instance showAddress :: Show Address where
-  show (Address bs) = toHex bs
-
-derive instance newtypeAddress :: Newtype Address _
+  show = toHex >>> show
 
 instance fromHexAddress :: FromHex Address where
   fromHex = fromHex >=> mkAddress
 
 instance toHexAddress :: ToHex Address where
   toHex = unwrap >>> toHex >>> append "Address#"
+
+instance decodeAddress :: DecodeJson Address where
+  decodeJson = decodeJson
+               >=> fromHex >>> lmap (append "Failed to decode Address: ")
+               >=> mkAddress
+
+instance encodeAddress :: EncodeJson Address where
+  encodeJson = unwrap >>> encodeJson
 
 
 -- | Ethereum signature used for signing / verification
@@ -171,19 +188,22 @@ derive instance newtypeSignature :: Newtype Signature _
 
 derive instance eqSignature :: Eq Signature
 
-instance decodeSignature :: DecodeJson Signature where
-  decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode HEX as Signature")
-               >>> map Signature
-
 instance showSignature :: Show Signature where
-  show = unwrap >>> toHex >>> append "Signature#"
+  show = toHex >>> append "Signature#"
 
 instance fromHexSignature :: FromHex Signature where
   fromHex = fromHex >=> mkSignature
 
 instance toHexSignature :: ToHex Signature where
   toHex = unwrap >>> toHex
+
+instance decodeJsonSignature :: DecodeJson Signature where
+  decodeJson = decodeJson
+               >=> fromHex >>> lmap (append "Failed to decode HEX as Signature: ")
+               >>> map Signature
+
+instance encodeJsonSignature :: EncodeJson Signature where
+  encodeJson = unwrap >>> encodeJson
 
 
 -- | Keccak-256 hash
@@ -199,7 +219,7 @@ mkKeccak256 (Bytes bs) =
 derive instance newtypeKeccak256 :: Newtype Keccak256 _
 
 instance showKeccak256 :: Show Keccak256 where
-  show = unwrap >>> toHex >>> append "Keccak256#"
+  show = toHex >>> append "Keccak256#"
 
 derive instance eqKeccak256 :: Eq Keccak256
 
@@ -214,6 +234,9 @@ instance decodeJsonKeccak256 :: DecodeJson Keccak256 where
                >=> fromHex >>> lmap (append "Failed to decode Keccak-256 hash: ")
                >=> mkKeccak256
 
+instance encodeJsonKeccak256 :: EncodeJson Keccak256 where
+  encodeJson = unwrap >>> encodeJson
+
 
 -- | Contract code
 
@@ -222,7 +245,7 @@ newtype Code = Code Bytes
 derive instance newtypeCode :: Newtype Code _
 
 instance showCode :: Show Code where
-  show = unwrap >>> toHex >>> append "Code#"
+  show = toHex >>> append "Code#"
 
 derive instance eqCode :: Eq Code
 
@@ -237,6 +260,9 @@ instance decodeJsonCode :: DecodeJson Code where
                >=> fromHex >>> lmap (append "Failed to decode Code: ")
                >>> map Code
 
+instance encodeJsonCode :: EncodeJson Code where
+  encodeJson = unwrap >>> encodeJson
+
 
 -- | Ethereum block number
 
@@ -248,13 +274,8 @@ mkBlockNumber bi =
   then Left "Can't make a negative block number"
   else Right $ BlockNumber bi
 
-instance decodeBlockNumber :: DecodeJson BlockNumber where
-  decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode BlockNumber: ")
-               >=> mkBlockNumber
-
 instance showBlockNumber :: Show BlockNumber where
-  show = unwrap >>> toHex >>> append "BlockNumber#"
+  show = toHex >>> append "BlockNumber#"
 
 derive instance eqBlockNumber :: Eq BlockNumber
 
@@ -266,6 +287,14 @@ instance fromHexBlockNumber :: FromHex BlockNumber where
 instance toHexBlockNumber :: ToHex BlockNumber where
   toHex = unwrap >>> toHex
 
+instance decodeJsonBlockNumber :: DecodeJson BlockNumber where
+  decodeJson = decodeJson
+               >=> fromHex >>> lmap (append "Failed to decode BlockNumber: ")
+               >=> mkBlockNumber
+
+instance encodeJsonBlockNumber :: EncodeJson BlockNumber where
+  encodeJson = toHex >>> encodeJson
+
 
 -- | Ethereum block hash (32 bytes)
 
@@ -276,11 +305,6 @@ mkBlockHash (Bytes bs) =
   if (B.length bs /= 32)
   then Left "Block hash is expected to be exactly 32 bytes"
   else Right $ BlockHash (Bytes bs)
-
-instance decodeBlockHash :: DecodeJson BlockHash where
-  decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode BlockHash")
-               >=> mkBlockHash
 
 instance showBlockHash :: Show BlockHash where
   show = unwrap >>> toHex >>> append "BlockHash#"
@@ -295,6 +319,13 @@ instance toHexBlockHash :: ToHex BlockHash where
 instance fromHexBlockHash :: FromHex BlockHash where
   fromHex = fromHex >>> map BlockHash
 
+instance decodeJsonBlockHash :: DecodeJson BlockHash where
+  decodeJson = decodeJson
+               >=> fromHex >>> lmap (append "Failed to decode BlockHash: ")
+               >=> mkBlockHash
+
+instance encodeJsonBlockHash :: EncodeJson BlockHash where
+  encodeJson = unwrap >>> encodeJson
 
 -- | Ethereum block tag
 
@@ -331,3 +362,81 @@ instance fromHex :: FromHex Wei where
 
 instance toHex :: ToHex Wei where
   toHex = unwrap >>> toHex
+
+
+-- | Application Binary Interface
+-- | https://solidity.readthedocs.io/en/develop/abi-spec.html
+
+newtype Abi = Abi Bytes
+
+derive instance newtypeAbi :: Newtype Abi _
+
+derive instance eqAbi :: Eq Abi
+
+instance showAbi :: Show Abi where
+  show = unwrap >>> show
+
+instance toHexAbi :: ToHex Abi where
+  toHex = unwrap >>> toHex
+
+
+-- | Transaction
+
+newtype Transaction = Transaction
+  -- | Address the transaction is send from
+  { from :: Address
+  -- | Address the transaction is directed to (not specified when creating new contract)
+  , to :: Maybe Address
+  -- | Gas provided for the transaction execution (default: 90000)
+  , gas :: Maybe Quantity
+  -- | Gas price used for each paid gas (default: To-Be-Determined)
+  , gasPrice :: Maybe Quantity
+  -- | Value send with this transaction
+  , value :: Maybe Quantity
+  -- | Compiled code of a contract OR the hash of the invoked method signature and encoded parameters
+  , data :: Either Code Abi
+  -- | Allows to overwrite own pending transactions that use the same nonce
+  , nonce :: Maybe Quantity
+  }
+
+derive instance newtypeTransaction :: Newtype Transaction _
+
+derive instance eqTransaction :: Eq Transaction
+
+instance showTransaction :: Show Transaction where
+  show = encodeJson >>> stringify
+
+instance encodeJsonTransaction :: EncodeJson Transaction where
+  encodeJson (Transaction tx) =
+       "from" := tx.from
+    ~> "to" := tx.to
+    ~> jsonEmptyObject
+
+
+-- | TxHash
+
+newtype TxHash = TxHash Bytes
+
+mkTxHash :: Bytes -> Valid TxHash
+mkTxHash (Bytes bs) =
+  if (B.length bs /= 32)
+  then Left "Transaction hash is expected to be exactly 32 bytes"
+  else Right $ TxHash (Bytes bs)
+
+derive instance newtypeTxHash :: Newtype TxHash _
+
+instance showTxHash :: Show TxHash where
+  show = unwrap >>> toHex >>> append "TxHash#"
+
+derive instance eqTxHash :: Eq TxHash
+
+instance fromHexTxHash :: FromHex TxHash where
+  fromHex = fromHex >=> mkTxHash
+
+instance toHexTxHash :: ToHex TxHash where
+  toHex = unwrap >>> toHex
+
+instance decodeJsonTxHash :: DecodeJson TxHash where
+  decodeJson = decodeJson
+               >=> fromHex >>> lmap (append "Failed to decode transaction hash: ")
+               >=> mkTxHash
