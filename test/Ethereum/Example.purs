@@ -10,6 +10,7 @@ import Control.Monad.Eff.Random (RANDOM)
 import Data.ByteString (toUTF8)
 import Data.Either (Either(..))
 import Data.Maybe (maybe)
+import Data.Newtype (unwrap)
 import Data.String (joinWith)
 import Ethereum.Api as E
 import Ethereum.Text (toHex)
@@ -74,7 +75,7 @@ Gas price:                  """ <> (show gasPrice) <> """
 Accounts:                   """ <> (joinWith ", " $ show <$> accounts) <> """
 Most recent block:          """ <> (show recentBlockNumber) <> """
 Account balance:            """ <> (show balance) <> """
-# of coinbase transactions  """ <> (show accountTxCount) <> """
-# of transactions           """ <> (maybe "No transactions found" show blockTxCount) <> """
-# of uncles in a block      """ <> (show uncleCount) <> """
+# of coinbase transactions  """ <> (show $ maybe 0 unwrap accountTxCount) <> """
+# of transactions           """ <> (show $ maybe 0 unwrap blockTxCount) <> """
+# of uncles in a block      """ <> (show $ maybe 0 unwrap uncleCount) <> """
 """

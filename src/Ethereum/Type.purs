@@ -157,7 +157,7 @@ derive instance newtypeAddress :: Newtype Address _
 derive instance eqAddress :: Eq Address
 
 instance showAddress :: Show Address where
-  show = toHex >>> show >>> append "Address#"
+  show = toHex >>> append "Address#"
 
 instance fromHexAddress :: FromHex Address where
   fromHex = fromHex >=> mkAddress
@@ -212,8 +212,8 @@ newtype Keccak256 = Keccak256 Bytes
 
 mkKeccak256 :: Bytes -> Valid Keccak256
 mkKeccak256 (Bytes bs) =
-  if (B.length bs /= 256)
-  then Left "Keccak-256 hash is expected to be exactly 256 bytes"
+  if (B.length bs /= 32)
+  then Left "Keccak-256 hash is expected to be exactly 256 bits"
   else Right $ Keccak256 (Bytes bs)
 
 derive instance newtypeKeccak256 :: Newtype Keccak256 _

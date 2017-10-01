@@ -23,6 +23,7 @@ spec = do
   suite "Api" do
     let blockNumber = mkUnsafe 1
         blockHash = mkUnsafe $ unsafeRepeat 32 "32"
+        txHash = mkUnsafe $ unsafeRepeat 32 "33"
         address = mkUnsafe $ unsafeRepeat 20 "20"
         latestBlock = Right E.Latest
         bytes = mkUnsafe $ unsafeRepeat 64 "64"
@@ -172,13 +173,11 @@ spec = do
 
     test "eth_sendTransaction" do
       let eth = E.ethSendTransaction transaction
-          txHashStr = unsafeRepeat 32 "42"
-          txHash = mkUnsafe $ txHashStr
           rq = Rpc.Request { id: 1
                            , method: "eth_sendTransaction"
                            , params: [ stringify $ encodeJson transaction ]
                            }
-          rp = Rpc.Response 1 $ pure $ Just txHash
+          rp = Rpc.Response 1 $ Right $ Just txHash
       actual <- E.run (Match rq rp) eth
       Just txHash `equal` actual
 
