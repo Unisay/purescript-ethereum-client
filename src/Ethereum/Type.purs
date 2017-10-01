@@ -20,7 +20,7 @@ module Ethereum.Type
   , Bytes(..)
   , Tag(..)
   , Wei(..)
-  , Transaction
+  , Transaction(..)
   ) where
 
 import Prelude
@@ -139,7 +139,7 @@ instance decodeJsonQuantity :: DecodeJson Quantity where
                >=> mkQuantity
 
 instance encodeJsonQuantity :: EncodeJson Quantity where
-  encodeJson = unwrap >>> encodeJson
+  encodeJson = toHex >>> encodeJson
 
 
 -- | Ethereum address (20 bytes)
@@ -157,13 +157,13 @@ derive instance newtypeAddress :: Newtype Address _
 derive instance eqAddress :: Eq Address
 
 instance showAddress :: Show Address where
-  show = toHex >>> show
+  show = toHex >>> show >>> append "Address#"
 
 instance fromHexAddress :: FromHex Address where
   fromHex = fromHex >=> mkAddress
 
 instance toHexAddress :: ToHex Address where
-  toHex = unwrap >>> toHex >>> append "Address#"
+  toHex = unwrap >>> toHex
 
 instance decodeAddress :: DecodeJson Address where
   decodeJson = decodeJson
@@ -345,11 +345,6 @@ instance showTag :: Show Tag where
 
 newtype Wei = Wei I.BigInt
 
-instance decodeWei :: DecodeJson Wei where
-  decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode Wei: ")
-               >>> map Wei
-
 derive instance eqWei :: Eq Wei
 
 derive instance newtypeWei :: Newtype Wei _
@@ -362,6 +357,14 @@ instance fromHex :: FromHex Wei where
 
 instance toHex :: ToHex Wei where
   toHex = unwrap >>> toHex
+
+instance encodeJsonWei :: EncodeJson Wei where
+  encodeJson = toHex >>> encodeJson
+
+instance decodeJsonWei :: DecodeJson Wei where
+  decodeJson = decodeJson
+               >=> fromHex >>> lmap (append "Failed to decode Wei: ")
+               >>> map Wei
 
 
 -- | Application Binary Interface
@@ -440,3 +443,6 @@ instance decodeJsonTxHash :: DecodeJson TxHash where
   decodeJson = decodeJson
                >=> fromHex >>> lmap (append "Failed to decode transaction hash: ")
                >=> mkTxHash
+
+instance encodeJsonTxHash :: EncodeJson TxHash where
+  encodeJson = toHex >>> encodeJson

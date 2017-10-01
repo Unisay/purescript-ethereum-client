@@ -67,7 +67,7 @@ data EthF more = Web3ClientVersion (Decoder String) (String -> more)
                | EthGetUncleCountByBlockHash E.BlockHash (Decoder (Maybe E.Quantity)) ((Maybe E.Quantity) -> more)
                | EthGetUncleCountByBlockNumber DefaultBlock (Decoder (Maybe E.Quantity)) ((Maybe E.Quantity) -> more)
                | EthGetCode E.Address DefaultBlock (Decoder E.Code) (E.Code -> more)
-               | EthSign E.Address B.ByteString (Decoder E.Signature) (E.Signature -> more)
+               | EthSign E.Address E.Bytes (Decoder E.Signature) (E.Signature -> more)
                | EthSendTransaction E.Transaction (Decoder (Maybe E.TxHash)) (Maybe E.TxHash -> more)
 
 type Eth a = Free EthF a
@@ -174,7 +174,7 @@ ethGetCode address defBlock =
      Calculate an Ethereum specific signature with:
      sign(keccak256("\x19Ethereum Signed Message:\n" + len(message) + message)))
 -}
-ethSign :: E.Address -> B.ByteString -> Eth E.Signature
+ethSign :: E.Address -> E.Bytes -> Eth E.Signature
 ethSign address message = liftF $ EthSign address message decodeJson id
 
 -- | Creates new message call transaction or a contract creation, if the data field contains code
@@ -272,7 +272,9 @@ run = foldFree <<< nt
     nt cfg (EthGetCode address defaultBlock d f) =
       let request = Rpc.Request { id: 1
                                 , method: "eth_getCode"
-                                , params: [packDefaultBlock defaultBlock]
+                                , params: [ toHex address
+                                          , packDefaultBlock defaultBlock
+                                          ]
                                 }
       in Rpc.call cfg request >>= handle d f
     nt cfg (EthSign address message d f) =
@@ -288,13 +290,12 @@ run = foldFree <<< nt
                                 }
       in Rpc.call cfg request >>= handle d f
 
-
     call0 :: ∀ r. Rpc.Transport r e => r -> Rpc.Method -> Aff e (Rpc.Response Json)
     call0 c m = Rpc.call c $ Rpc.Request { id: 1, method: m, params: [] }
 
     unpackRpcResponse :: ∀ fx. Rpc.Response Json -> Aff fx Json
-    unpackRpcResponse (Rpc.Response (Right json)) = pure json
-    unpackRpcResponse (Rpc.Response (Left (Rpc.Error e))) =
+    unpackRpcResponse (Rpc.Response _ (Right json)) = pure json
+    unpackRpcResponse (Rpc.Response _ (Left (Rpc.Error e))) =
       err $ "JSON RPC error (" <> (show e.code) <> "): " <> e.message
 
     packDefaultBlock :: DefaultBlock -> String

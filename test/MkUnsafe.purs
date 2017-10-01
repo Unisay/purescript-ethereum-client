@@ -37,3 +37,6 @@ instance mkUnsafeQuantity :: MkUnsafe Int E.Quantity where
 
 instance mkUnsafeCode :: MkUnsafe String E.Code where
   mkUnsafe = mkUnsafe >>> E.Code
+
+instance mkUnsafeTxHash :: MkUnsafe String E.TxHash where
+  mkUnsafe s = unsafePartial $ fromRight $ E.mkTxHash $ mkUnsafe s
