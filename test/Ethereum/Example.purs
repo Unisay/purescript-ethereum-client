@@ -2,11 +2,10 @@ module Ethereum.Example.Spec where
 
 import Prelude
 
+import Control.Monad.Aff (launchAff_)
 import Control.Monad.Aff.Console (log)
 import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.AVar (AVAR)
 import Control.Monad.Eff.Console (CONSOLE)
-import Control.Monad.Eff.Random (RANDOM)
 import Data.ByteString (toUTF8)
 import Data.Either (Either(..))
 import Data.Maybe (maybe)
@@ -16,28 +15,11 @@ import Ethereum.Api as E
 import Ethereum.Text (toHex)
 import Network.HTTP.Affjax (AJAX)
 import Network.Rpc.Json (AffjaxLoggingTransport(..))
-import Test.Unit (TestSuite, suite, test)
-import Test.Unit.Assert as Assert
-import Test.Unit.Console (TESTOUTPUT)
-import Test.Unit.Main (runTest)
 import Test.Unsafe (mkUnsafe)
 
-main :: ∀ e. Eff ( console    :: CONSOLE
-                 , testOutput :: TESTOUTPUT
-                 , avar       :: AVAR
-                 , random     :: RANDOM
-                 , ajax       :: AJAX
-                 | e
-                 ) Unit
-main = runTest spec
-
-spec :: ∀ e. TestSuite ( ajax :: AJAX, console :: CONSOLE | e)
-spec = do
-  suite "Example" $
-    test "against local node" do
-      let transport = AffjaxLoggingTransport "http://127.0.0.1:8545"
-      E.run transport info >>= log
-      Assert.assert "" true
+main :: ∀ e. Eff (console :: CONSOLE, ajax :: AJAX | e) Unit
+main = launchAff_ $ E.run transport info >>= log
+  where transport = AffjaxLoggingTransport "http://127.0.0.1:8545"
 
 info :: E.Eth String
 info = do
@@ -58,24 +40,31 @@ info = do
   balance <- E.ethGetBalance coinbase defaultBlock
   accountTxCount <- E.ethGetTransactionCount coinbase defaultBlock
   let blockHash = mkUnsafe "b903239f8543d04b5dc1ba6579132b143087c68db1b2168786408fcbce568238"
-  blockTxCount <- E.ethGetBlockTransactionCountByHash blockHash
-  uncleCount <- E.ethGetUncleCountByBlockNumber defaultBlock
+  blockTxCountByHash <- E.ethGetBlockTransactionCountByHash blockHash
+  blockTxCountByBlock <- E.ethGetBlockTransactionCountByNumber defaultBlock
+  uncleCountByHash <- E.ethGetUncleCountByBlockHash blockHash
+  uncleCountByBlock <- E.ethGetUncleCountByBlockNumber defaultBlock
+  let address = mkUnsafe "5481c0fe170641bd2e0ff7f04161871829c1902d"
+  code <- E.ethGetCode address defaultBlock
   pure $ """
-Network:                    """ <> (show network) <> """
-Is listening:               """ <> (show listening) <> """
-Number of Peers:            """ <> (show peers) <> """
-Client version:             """ <> clientVersion <> """
-Keccak 256 (hello):         """ <> (toHex keccak) <> """
-Ethereum protocol version:  """ <> protocolVersion <> """
-Sync status:                """ <> (maybe "Not syncing" show syncStatus) <> """
-Coinbase:                   """ <> (show coinbase) <> """
-Is mining:                  """ <> (show mining) <> """
-Hashes per second:          """ <> (show hashrate) <> """
-Gas price:                  """ <> (show gasPrice) <> """
-Accounts:                   """ <> (joinWith ", " $ show <$> accounts) <> """
-Most recent block:          """ <> (show recentBlockNumber) <> """
-Account balance:            """ <> (show balance) <> """
-# of coinbase transactions  """ <> (show $ maybe 0 unwrap accountTxCount) <> """
-# of transactions           """ <> (show $ maybe 0 unwrap blockTxCount) <> """
-# of uncles in a block      """ <> (show $ maybe 0 unwrap uncleCount) <> """
+Network:                           """ <> show network <> """
+Is listening:                      """ <> show listening <> """
+Number of Peers:                   """ <> show peers <> """
+Client version:                    """ <> clientVersion <> """
+Keccak 256 (hello):                """ <> toHex keccak <> """
+Ethereum protocol version:         """ <> protocolVersion <> """
+Sync status:                       """ <> maybe "Not syncing" show syncStatus <> """
+Coinbase:                          """ <> show coinbase <> """
+Is mining:                         """ <> show mining <> """
+Hashes per second:                 """ <> show hashrate <> """
+Gas price:                         """ <> show gasPrice <> """
+Accounts:                          """ <> joinWith ", " (show <$> accounts) <> """
+Most recent block:                 """ <> show recentBlockNumber <> """
+Account balance:                   """ <> show balance <> """
+# of coinbase transactions:        """ <> show (maybe 0 unwrap accountTxCount) <> """
+# of transactions by hash:         """ <> show (maybe 0 unwrap blockTxCountByHash) <> """
+# of transactions by block:        """ <> show (maybe 0 unwrap blockTxCountByBlock) <> """
+# of uncles in a block by hash:    """ <> show (maybe 0 unwrap uncleCountByHash) <> """
+# of uncles in a block by block:   """ <> show (maybe 0 unwrap uncleCountByBlock) <> """
+Contract code:                     """ <> show code <> """
 """
