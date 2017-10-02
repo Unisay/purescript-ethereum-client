@@ -26,6 +26,8 @@ module Ethereum.Api
   , ethGetCode
   , ethSign
   , ethSendTransaction
+  , ethSendRawTransaction
+  , ethCall
   ) where
 
 import Prelude
@@ -39,36 +41,39 @@ import Data.ByteString as B
 import Data.Either (Either(Right, Left), either)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
+import Data.Ethereum as E
 import Ethereum.Text (fromHex, toHex)
-import Ethereum.Type as E
 import Network.Rpc.Json as Rpc
 
 type Decoder r = Json -> Either String r
 type DefaultBlock = Either E.BlockNumber E.Tag
 
-data EthF more = Web3ClientVersion (Decoder String) (String -> more)
-               | Web3Keccak256 B.ByteString (Decoder E.Keccak256) (E.Keccak256 -> more)
-               | NetVersion (Decoder E.Network) (E.Network -> more)
-               | NetListening (Decoder Boolean) (Boolean -> more)
-               | NetPeerCount (Decoder E.Quantity) (E.Quantity -> more)
-               | EthProtocolVersion (Decoder String) (String -> more)
-               | EthSyncing (Decoder (Maybe E.SyncStatus)) (Maybe E.SyncStatus -> more)
-               | EthCoinbase (Decoder E.Address) (E.Address -> more)
-               | EthMining (Decoder Boolean) (Boolean -> more)
-               | EthHashrate (Decoder E.Quantity) (E.Quantity -> more)
-               | EthGasPrice (Decoder E.Wei) (E.Wei -> more)
-               | EthAccounts (Decoder (Array E.Address)) (Array E.Address -> more)
-               | EthBlockNumber (Decoder E.BlockNumber) (E.BlockNumber -> more)
-               | EthGetBalance E.Address DefaultBlock (Decoder E.Wei) (E.Wei -> more)
-               | EthGetStorageAt E.Address Int DefaultBlock (Decoder E.Bytes) (E.Bytes -> more)
-               | EthGetTxCount E.Address DefaultBlock (Decoder (Maybe E.Quantity)) ((Maybe E.Quantity) -> more)
-               | EthGetBlockTxCountByHash E.BlockHash (Decoder (Maybe E.Quantity)) (Maybe E.Quantity -> more)
-               | EthGetBlockTxCountByNumber DefaultBlock (Decoder (Maybe E.Quantity)) (Maybe E.Quantity -> more)
-               | EthGetUncleCountByBlockHash E.BlockHash (Decoder (Maybe E.Quantity)) ((Maybe E.Quantity) -> more)
-               | EthGetUncleCountByBlockNumber DefaultBlock (Decoder (Maybe E.Quantity)) ((Maybe E.Quantity) -> more)
-               | EthGetCode E.Address DefaultBlock (Decoder E.Code) (E.Code -> more)
-               | EthSign E.Address E.Bytes (Decoder E.Signature) (E.Signature -> more)
-               | EthSendTransaction E.Transaction (Decoder (Maybe E.TxHash)) (Maybe E.TxHash -> more)
+data EthF more =
+    Web3ClientVersion (Decoder String) (String -> more)
+  | Web3Keccak256 B.ByteString (Decoder E.Keccak256) (E.Keccak256 -> more)
+  | NetVersion (Decoder E.Network) (E.Network -> more)
+  | NetListening (Decoder Boolean) (Boolean -> more)
+  | NetPeerCount (Decoder E.Quantity) (E.Quantity -> more)
+  | EthProtocolVersion (Decoder String) (String -> more)
+  | EthSyncing (Decoder (Maybe E.SyncStatus)) (Maybe E.SyncStatus -> more)
+  | EthCoinbase (Decoder E.Address) (E.Address -> more)
+  | EthMining (Decoder Boolean) (Boolean -> more)
+  | EthHashrate (Decoder E.Quantity) (E.Quantity -> more)
+  | EthGasPrice (Decoder E.Wei) (E.Wei -> more)
+  | EthAccounts (Decoder (Array E.Address)) (Array E.Address -> more)
+  | EthBlockNumber (Decoder E.BlockNumber) (E.BlockNumber -> more)
+  | EthGetBalance E.Address DefaultBlock (Decoder E.Wei) (E.Wei -> more)
+  | EthGetStorageAt E.Address Int DefaultBlock (Decoder E.Bytes) (E.Bytes -> more)
+  | EthGetTxCount E.Address DefaultBlock (Decoder (Maybe E.Quantity)) ((Maybe E.Quantity) -> more)
+  | EthGetBlockTxCountByHash E.BlockHash (Decoder (Maybe E.Quantity)) (Maybe E.Quantity -> more)
+  | EthGetBlockTxCountByNumber DefaultBlock (Decoder (Maybe E.Quantity)) (Maybe E.Quantity -> more)
+  | EthGetUncleCountByBlockHash E.BlockHash (Decoder (Maybe E.Quantity)) ((Maybe E.Quantity) -> more)
+  | EthGetUncleCountByBlockNumber DefaultBlock (Decoder (Maybe E.Quantity)) ((Maybe E.Quantity) -> more)
+  | EthGetCode E.Address DefaultBlock (Decoder E.Code) (E.Code -> more)
+  | EthSign E.Address E.Bytes (Decoder E.Signature) (E.Signature -> more)
+  | EthSendTransaction E.Transaction (Decoder (Maybe E.TxHash)) (Maybe E.TxHash -> more)
+  | EthSendRawTransaction E.Bytes (Decoder (Maybe E.TxHash)) (Maybe E.TxHash -> more)
+  | EthCall E.Transaction DefaultBlock (Decoder E.Bytes) (E.Bytes -> more)
 
 type Eth a = Free EthF a
 
@@ -177,15 +182,29 @@ ethGetCode address defBlock =
 ethSign :: E.Address -> E.Bytes -> Eth E.Signature
 ethSign address message = liftF $ EthSign address message decodeJson id
 
--- | Creates new message call transaction or a contract creation, if the data field contains code
+-- | Creates new message call transaction
+-- | or a contract creation, if the data field contains code
 ethSendTransaction :: E.Transaction -> Eth (Maybe E.TxHash)
-ethSendTransaction tx =
-  liftF $ EthSendTransaction tx decoder id
-  where decoder json = do
-          s <- decodeJson json
-          if (s == "0x0")
-            then pure Nothing
-            else Just <$> fromHex s
+ethSendTransaction tx = liftF $ EthSendTransaction tx decodeTxHash id
+
+decodeTxHash :: Decoder (Maybe E.TxHash)
+decodeTxHash json = do
+  s <- decodeJson json
+  if (s == "0x0")
+    then pure Nothing
+    else Just <$> fromHex s
+
+-- | Create a new message call transaction or a contract for signed transactions
+ethSendRawTransaction :: E.Bytes -> Eth (Maybe E.TxHash)
+ethSendRawTransaction bs = liftF $ EthSendRawTransaction bs decodeTxHash id
+
+-- | Execute a new message call immediately
+-- | without creating a transaction on the block chain
+ethCall :: E.Transaction -> DefaultBlock -> Eth E.Bytes
+ethCall tx db = liftF $ EthCall tx db decodeJson id
+
+
+
 
 
 -- | Runs Eth monad returning Aff
@@ -196,7 +215,10 @@ run = foldFree <<< nt
     nt cfg (Web3ClientVersion d f) =
       call0 cfg "web3_clientVersion" >>= handle d f
     nt cfg (Web3Keccak256 s d f) =
-      let request = Rpc.Request { id: 1, method: "web3_sha3", params: [toHex s] }
+      let request = Rpc.Request { id: 1
+                                , method: "web3_sha3"
+                                , params: [toHex s]
+                                }
       in Rpc.call cfg request >>= handle d f
     nt cfg (NetVersion d f) =
       call0 cfg "net_version" >>= handle d f
@@ -289,9 +311,28 @@ run = foldFree <<< nt
                                 , params: [stringify $ encodeJson tx]
                                 }
       in Rpc.call cfg request >>= handle d f
+    nt cfg (EthSendRawTransaction bytes d f) =
+      let request = Rpc.Request { id: 1
+                                , method: "eth_sendRawTransaction"
+                                , params: [toHex bytes]
+                                }
+      in Rpc.call cfg request >>= handle d f
+    nt cfg (EthCall tx defaultBlock d f) =
+      let request = Rpc.Request { id: 1
+                                , method: "eth_call"
+                                , params: [ stringify $ encodeJson tx
+                                          , packDefaultBlock defaultBlock
+                                          ]
+                                }
+      in Rpc.call cfg request >>= handle d f
 
-    call0 :: ∀ r. Rpc.Transport r e => r -> Rpc.Method -> Aff e (Rpc.Response Json)
-    call0 c m = Rpc.call c $ Rpc.Request { id: 1, method: m, params: [] }
+
+    call0 :: ∀ r. Rpc.Transport r e =>
+             r -> Rpc.Method -> Aff e (Rpc.Response Json)
+    call0 c m = Rpc.call c $ Rpc.Request { id: 1
+                                         , method: m
+                                         , params: []
+                                         }
 
     unpackRpcResponse :: ∀ fx. Rpc.Response Json -> Aff fx Json
     unpackRpcResponse (Rpc.Response _ (Right json)) = pure json
@@ -305,8 +346,13 @@ run = foldFree <<< nt
     decode :: ∀ fx r. Decoder r -> Json -> Aff fx r
     decode decoder json = either err pure $ decoder json
 
-    handle :: ∀ r fx b. Decoder r -> (r -> b) -> Rpc.Response Json -> Aff fx b
-    handle decoder continue response = unpackRpcResponse response >>= decode decoder <#> continue
+    handle :: ∀ r fx b.
+              Decoder r ->
+              (r -> b) ->
+              Rpc.Response Json ->
+              Aff fx b
+    handle decoder continue response = unpackRpcResponse response
+                                   >>= decode decoder <#> continue
 
     err :: ∀ fx b. String -> Aff fx b
     err = throwError <<< error

@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/Unisay/purescript-ethereum-client.svg?branch=master)](https://travis-ci.org/Unisay/purescript-ethereum-client)
 [![Pursuit](https://pursuit.purescript.org/packages/purescript-ethereum-client/badge)](https://pursuit.purescript.org/packages/purescript-ethereum-client)
 
-Ethereum [RPC protocol](https://github.com/ethereum/wiki/wiki/JSON-RPC) client 
+Ethereum [RPC protocol](https://github.com/ethereum/wiki/wiki/JSON-RPC) client
 
 ### Status
 
@@ -31,9 +31,9 @@ Work in progress:
 - [x] eth_getUncleCountByBlockNumber
 - [x] eth_getCode
 - [x] eth_sign
-- [ ] eth_sendTransaction
-- [ ] eth_sendRawTransaction
-- [ ] eth_call
+- [x] eth_sendTransaction
+- [x] eth_sendRawTransaction
+- [x] eth_call
 - [ ] eth_estimateGas
 - [ ] eth_getBlockByHash
 - [ ] eth_getBlockByNumber

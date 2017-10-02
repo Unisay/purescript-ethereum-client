@@ -6,10 +6,10 @@ import Data.BigInt as I
 import Data.ByteString (ByteString)
 import Data.ByteString as BS
 import Data.Either (Either(Right))
+import Data.Ethereum (Address)
 import Data.String.Utils (unsafeRepeat)
 import Data.Traversable (traverse)
 import Ethereum.Text (fromHex, toHex)
-import Ethereum.Type (Address)
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.Assert (equal)
 import Test.Unsafe (mkUnsafe)

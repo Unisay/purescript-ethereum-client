@@ -12,7 +12,6 @@ import Data.Maybe (Maybe(..))
 import Data.String.Utils (unsafeRepeat)
 import Ethereum.Api as E
 import Ethereum.Text (toHex)
-import Ethereum.Type (SyncStatus(..))
 import Network.Rpc.Json as Rpc
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.Assert (equal)
@@ -56,7 +55,7 @@ spec = do
           rq = Rpc.Request {id: 1, method: "eth_syncing", params: []}
           rp = Rpc.Response 1 (Right syncStatusJson)
       actual <- E.run (Match rq rp) E.ethSyncing
-      Just (SyncStatus syncStatus) `equal` actual
+      Just (E.SyncStatus syncStatus) `equal` actual
 
     test "eth_blockNumber" $ do
       let rq = Rpc.Request {id: 1, method: "eth_blockNumber", params: []}
@@ -175,11 +174,33 @@ spec = do
       let eth = E.ethSendTransaction transaction
           rq = Rpc.Request { id: 1
                            , method: "eth_sendTransaction"
-                           , params: [ stringify $ encodeJson transaction ]
+                           , params: [stringify $ encodeJson transaction]
                            }
           rp = Rpc.Response 1 $ Right $ Just txHash
       actual <- E.run (Match rq rp) eth
       Just txHash `equal` actual
+
+    test "eth_sendRawTransaction" do
+      let eth = E.ethSendRawTransaction bytes
+          rq = Rpc.Request { id: 1
+                           , method: "eth_sendRawTransaction"
+                           , params: [toHex bytes]
+                           }
+          rp = Rpc.Response 1 $ Right $ Just txHash
+      actual <- E.run (Match rq rp) eth
+      Just txHash `equal` actual
+
+    test "eth_call" do
+      let eth = E.ethCall transaction latestBlock
+          rq = Rpc.Request { id: 1
+                           , method: "eth_call"
+                           , params: [ stringify $ encodeJson transaction
+                                     , "latest"
+                                     ]
+                           }
+          rp = Rpc.Response 1 $ Right $ bytes
+      actual <- E.run (Match rq rp) eth
+      bytes `equal` actual
 
 
 

@@ -1,4 +1,4 @@
-module Ethereum.Type
+module Data.Ethereum
   ( Network(..)
   , SyncStatus(..)
   , BlockNumber
@@ -9,6 +9,7 @@ module Ethereum.Type
   , mkAddress
   , Signature
   , mkSignature
+  , rsv
   , Keccak256
   , mkKeccak256
   , BlockHash
@@ -16,30 +17,45 @@ module Ethereum.Type
   , TxHash
   , mkTxHash
   , Abi(..)
+  , mkAbi
   , Code(..)
   , Bytes(..)
+  , mkBytes
   , Tag(..)
   , Wei(..)
+  , Endpoint(..)
+  , Contract(..)
   , Transaction(..)
+  , Call(..)
   ) where
 
 import Prelude
 
-import Data.Argonaut.Core (jsonEmptyObject, stringify)
+import Data.Argonaut.Core (Json, jsonEmptyObject, stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.?))
-import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
+import Data.Argonaut.Encode (class EncodeJson, assoc, encodeJson, extend)
+import Data.Array (catMaybes)
 import Data.Bifunctor (lmap)
 import Data.BigInt as I
 import Data.ByteString as B
-import Data.Either (Either(Right, Left))
-import Data.Maybe (Maybe)
+import Data.Either (Either(Right, Left), either)
+import Data.Foldable (foldl)
+import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
 import Ethereum.Text (class FromHex, class ToHex, fromHex, toHex)
+import Node.Buffer.Unsafe (slice)
 
 type Error = String
 type Valid = Either Error
 
 newtype Bytes = Bytes B.ByteString
+
+mkBytes :: String -> Bytes
+mkBytes = B.toUTF8 >>> Bytes
+
+sliceBytes :: Int -> Int -> Bytes -> Bytes
+sliceBytes from to (Bytes bs) =
+  Bytes $ B.unsafeFreeze (slice from to (B.unsafeThaw bs))
 
 derive instance newtypeBytes :: Newtype Bytes _
 
@@ -56,7 +72,7 @@ instance fromHexBytes :: FromHex Bytes where
 
 instance decodeJsonBytes :: DecodeJson Bytes where
   decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode Bytes")
+               >=> fromHex >>> lmap (append "Failed to decode Bytes: ")
                >>> map Bytes
 
 instance encodeJsonBytes :: EncodeJson Bytes where
@@ -183,6 +199,12 @@ mkSignature (Bytes bs) =
   if (B.isEmpty bs)
   then Left "Signature couldn't be empty"
   else Right $ Signature (Bytes bs)
+
+rsv :: Signature -> { r :: Bytes, s :: Bytes, v :: Bytes }
+rsv (Signature bs) = { r : sliceBytes 0 64 bs
+                     , s : sliceBytes 64 128 bs
+                     , v : sliceBytes 128 130 bs
+                     }
 
 derive instance newtypeSignature :: Newtype Signature _
 
@@ -369,19 +391,25 @@ instance decodeJsonWei :: DecodeJson Wei where
 
 -- | Application Binary Interface
 -- | https://solidity.readthedocs.io/en/develop/abi-spec.html
+-- | TODO: implement Abi algebra
 
 newtype Abi = Abi Bytes
+
+mkAbi :: Json -> Abi
+mkAbi = stringify >>> mkBytes >>> Abi
 
 derive instance newtypeAbi :: Newtype Abi _
 
 derive instance eqAbi :: Eq Abi
 
 instance showAbi :: Show Abi where
-  show = unwrap >>> show
+  show = unwrap >>> show >>> append "ABI#"
 
 instance toHexAbi :: ToHex Abi where
   toHex = unwrap >>> toHex
 
+instance encodeJson :: EncodeJson Abi where
+  encodeJson = unwrap >>> encodeJson
 
 -- | Transaction
 
@@ -411,9 +439,17 @@ instance showTransaction :: Show Transaction where
 
 instance encodeJsonTransaction :: EncodeJson Transaction where
   encodeJson (Transaction tx) =
-       "from" := tx.from
-    ~> "to" := tx.to
-    ~> jsonEmptyObject
+    let dta = either encodeJson encodeJson tx.data
+        fs = [ assoc "from" tx.from # Just
+             , assoc "to"       <$> tx.to
+             , assoc "gas"      <$> tx.gas
+             , assoc "gasPrice" <$> tx.gasPrice
+             , assoc "value"    <$> tx.value
+             , assoc "nonce"    <$> tx.nonce
+             , assoc "data" dta # Just
+             ]
+        fields = catMaybes fs
+    in foldl (flip extend) jsonEmptyObject fields
 
 
 -- | TxHash
@@ -423,7 +459,9 @@ newtype TxHash = TxHash Bytes
 mkTxHash :: Bytes -> Valid TxHash
 mkTxHash (Bytes bs) =
   if (B.length bs /= 32)
-  then Left "Transaction hash is expected to be exactly 32 bytes"
+  then Left $ "Transaction hash is expected to be exactly 32 bytes "
+           <> "but it is "
+           <> show (B.length bs)
   else Right $ TxHash (Bytes bs)
 
 derive instance newtypeTxHash :: Newtype TxHash _
@@ -446,3 +484,66 @@ instance decodeJsonTxHash :: DecodeJson TxHash where
 
 instance encodeJsonTxHash :: EncodeJson TxHash where
   encodeJson = toHex >>> encodeJson
+
+
+data Endpoint = Endpoint Address Abi
+
+derive instance eqEndpoint :: Eq Endpoint
+
+instance showEndpoint :: Show Endpoint where
+  show (Endpoint addr abi) =
+    "Endpoint { " <> show addr
+          <> ", " <> show abi
+          <> "}"
+
+
+data Contract = Contract Endpoint TxHash
+
+endpoint :: Contract -> Endpoint
+endpoint (Contract ep _) = ep
+
+derive instance eqContract :: Eq Contract
+
+instance showContract :: Show Contract where
+  show (Contract (Endpoint addr abi) tx) =
+    "Contract { " <> show addr
+          <> ", " <> show abi
+          <> ", " <> show tx
+          <> "}"
+
+-- | Call
+
+newtype Call = Call
+  -- | Address the transaction is send from
+  { from :: Address
+  -- | Address the transaction is directed to (not specified when creating new contract)
+  , to :: Maybe Address
+  -- | Gas provided for the transaction execution (default: 90000)
+  , gas :: Maybe Quantity
+  -- | Gas price used for each paid gas (default: To-Be-Determined)
+  , gasPrice :: Maybe Quantity
+  -- | Value send with this transaction
+  , value :: Maybe Quantity
+  -- | Compiled code of a contract OR the hash of the invoked method signature and encoded parameters
+  , data :: Either Code Abi
+  }
+
+derive instance newtypeCall :: Newtype Call _
+
+derive instance eqCall :: Eq Call
+
+instance showCall :: Show Call where
+  show = encodeJson >>> stringify
+
+instance encodeJsonCall :: EncodeJson Call where
+  encodeJson (Call call) =
+    let dta = either encodeJson encodeJson call.data
+        fs = [ assoc "from" call.from # Just
+             , assoc "to"       <$> call.to
+             , assoc "gas"      <$> call.gas
+             , assoc "gasPrice" <$> call.gasPrice
+             , assoc "value"    <$> call.value
+             , assoc "data" dta # Just
+             ]
+        fields = catMaybes fs
+    in foldl (flip extend) jsonEmptyObject fields

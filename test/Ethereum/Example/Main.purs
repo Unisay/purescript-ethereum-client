@@ -1,4 +1,4 @@
-module Ethereum.Example.Spec where
+module Ethereum.Example.Main where
 
 import Prelude
 

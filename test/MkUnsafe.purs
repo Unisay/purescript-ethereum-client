@@ -2,41 +2,56 @@ module Test.Unsafe where
 
 import Prelude
 
+import Control.Monad.Eff.Exception.Unsafe (unsafeThrow)
+import Data.Argonaut.Core (Json)
+import Data.Argonaut.Parser (jsonParser)
 import Data.BigInt as I
 import Data.ByteString (ByteString, Encoding(..))
 import Data.ByteString as B
-import Data.Either (fromRight)
-import Data.Maybe (fromJust)
-import Ethereum.Type as E
-import Partial.Unsafe (unsafePartial)
+import Data.Either (Either, either)
+import Data.Ethereum as E
+import Data.Maybe (Maybe(Nothing, Just))
 
 
 class MkUnsafe i o | o -> i where
   mkUnsafe :: i -> o
 
 instance mkUnsafeByteString :: MkUnsafe String ByteString where
-  mkUnsafe s = unsafePartial $ fromJust (B.fromString s Hex)
+  mkUnsafe s = unsafeJust (B.fromString s Hex)
 
 instance mkUnsafeBytes :: MkUnsafe String E.Bytes where
   mkUnsafe = mkUnsafe >>> E.Bytes
 
 instance mkUnsafeBlockHash :: MkUnsafe String E.BlockHash where
-  mkUnsafe s = unsafePartial $ fromRight $ E.mkBlockHash $ mkUnsafe s
+  mkUnsafe = mkUnsafe >>> E.mkBlockHash >>> unsafeRight
 
 instance mkUnsafeBlockNumber :: MkUnsafe Int E.BlockNumber where
-  mkUnsafe i = unsafePartial $ fromRight $ E.mkBlockNumber $ I.fromInt i
+  mkUnsafe = I.fromInt >>> E.mkBlockNumber >>> unsafeRight
 
 instance mkUnsafeAddress :: MkUnsafe String E.Address where
-  mkUnsafe s = unsafePartial $ fromRight $ E.mkAddress $ mkUnsafe s
+  mkUnsafe = mkUnsafe >>> E.mkAddress >>> unsafeRight
 
 instance mkUnsafeSignature :: MkUnsafe String E.Signature where
-  mkUnsafe s = unsafePartial $ fromRight $ E.mkSignature $ mkUnsafe s
+  mkUnsafe = mkUnsafe >>> E.mkSignature >>> unsafeRight
 
 instance mkUnsafeQuantity :: MkUnsafe Int E.Quantity where
-  mkUnsafe i = unsafePartial $ fromRight $ E.mkQuantity i
+  mkUnsafe = E.mkQuantity >>> unsafeRight
 
 instance mkUnsafeCode :: MkUnsafe String E.Code where
   mkUnsafe = mkUnsafe >>> E.Code
 
 instance mkUnsafeTxHash :: MkUnsafe String E.TxHash where
-  mkUnsafe s = unsafePartial $ fromRight $ E.mkTxHash $ mkUnsafe s
+  mkUnsafe = mkUnsafe >>> E.mkTxHash >>> unsafeRight
+
+instance mkUnsafeJson :: MkUnsafe String Json where
+  mkUnsafe = jsonParser >>> unsafeRight
+
+unsafeRight :: ∀ a. Either String a -> a
+unsafeRight = either handleUnsafeErr id
+
+unsafeJust :: ∀ a. Maybe a -> a
+unsafeJust (Just a) = a
+unsafeJust Nothing = handleUnsafeErr "Maybe is Nothing"
+
+handleUnsafeErr :: ∀ a. String -> a
+handleUnsafeErr = append "Unsafe construction: " >>> unsafeThrow
