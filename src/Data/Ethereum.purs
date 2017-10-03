@@ -1,18 +1,13 @@
 module Data.Ethereum
-  ( module EB
-  , module EA
-  , module EN
-  , module ES
-  , module EL
-  , Quantity
-  , mkQuantity
-  , Address
-  , mkAddress
-  , Signature
-  , mkSignature
-  , rsv
-  , Keccak256
-  , mkKeccak256
+  ( module Bytes
+  , module Abi
+  , module Network
+  , module Sync
+  , module Block
+  , module Quantity
+  , module Address
+  , module Signature
+  , module Hash
   , TxHash
   , mkTxHash
   , Code(..)
@@ -34,11 +29,18 @@ import Data.BigInt as I
 import Data.ByteString as B
 import Data.Either (Either(Right, Left), either)
 import Data.Ethereum.Abi (Abi)
-import Data.Ethereum.Bytes as EB
-import Data.Ethereum.Abi as EA
-import Data.Ethereum.Network as EN
-import Data.Ethereum.Sync as ES
-import Data.Ethereum.Block as EL
+import Data.Ethereum.Bytes as Bytes
+import Data.Ethereum.Bytes (Bytes(Bytes))
+import Data.Ethereum.Abi as Abi
+import Data.Ethereum.Network as Network
+import Data.Ethereum.Sync as Sync
+import Data.Ethereum.Block as Block
+import Data.Ethereum.Quantity as Quantity
+import Data.Ethereum.Quantity (Quantity)
+import Data.Ethereum.Address as Address
+import Data.Ethereum.Address (Address)
+import Data.Ethereum.Signature as Signature
+import Data.Ethereum.Hash as Hash
 import Data.Foldable (foldl)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
@@ -48,142 +50,10 @@ type Error = String
 type Valid = Either Error
 
 
--- | Quantity: a natural number
-
-newtype Quantity = Quantity Int
-
-mkQuantity :: Int -> Valid Quantity
-mkQuantity i = if (i < 0)
-               then Left "Can't make a negative Quantity"
-               else Right (Quantity i)
-
-derive instance eqQuantity :: Eq Quantity
-
-derive instance newtypeQuantity :: Newtype Quantity _
-
-instance showQuantity :: Show Quantity where
-  show = unwrap >>> show
-
-instance fromHexQuantity :: FromHex Quantity where
-  fromHex = fromHex >>> map Quantity
-
-instance toHexQuantity :: ToHex Quantity where
-  toHex = unwrap >>> toHex
-
-instance decodeJsonQuantity :: DecodeJson Quantity where
-  decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode Quantity: ")
-               >=> mkQuantity
-
-instance encodeJsonQuantity :: EncodeJson Quantity where
-  encodeJson = toHex >>> encodeJson
-
-
--- | Ethereum address (20 bytes)
-
-newtype Address = Address EB.Bytes
-
-mkAddress :: EB.Bytes -> Valid Address
-mkAddress (EB.Bytes bs) =
-  if (B.length bs /= 20)
-  then Left "Address is expected to be exactly 20 bytes"
-  else Right $ Address (EB.Bytes bs)
-
-derive instance newtypeAddress :: Newtype Address _
-
-derive instance eqAddress :: Eq Address
-
-instance showAddress :: Show Address where
-  show = toHex >>> append "Address#"
-
-instance fromHexAddress :: FromHex Address where
-  fromHex = fromHex >=> mkAddress
-
-instance toHexAddress :: ToHex Address where
-  toHex = unwrap >>> toHex
-
-instance decodeAddress :: DecodeJson Address where
-  decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode Address: ")
-               >=> mkAddress
-
-instance encodeAddress :: EncodeJson Address where
-  encodeJson = unwrap >>> encodeJson
-
-
--- | Ethereum signature used for signing / verification
-
-newtype Signature = Signature EB.Bytes
-
-mkSignature :: EB.Bytes -> Valid Signature
-mkSignature (EB.Bytes bs) =
-  if (B.isEmpty bs)
-  then Left "Signature couldn't be empty"
-  else Right $ Signature (EB.Bytes bs)
-
-rsv :: Signature -> { r :: EB.Bytes, s :: EB.Bytes, v :: EB.Bytes }
-rsv (Signature bs) = { r : EB.sliceBytes 0 64 bs
-                     , s : EB.sliceBytes 64 128 bs
-                     , v : EB.sliceBytes 128 130 bs
-                     }
-
-derive instance newtypeSignature :: Newtype Signature _
-
-derive instance eqSignature :: Eq Signature
-
-instance showSignature :: Show Signature where
-  show = toHex >>> append "Signature#"
-
-instance fromHexSignature :: FromHex Signature where
-  fromHex = fromHex >=> mkSignature
-
-instance toHexSignature :: ToHex Signature where
-  toHex = unwrap >>> toHex
-
-instance decodeJsonSignature :: DecodeJson Signature where
-  decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode HEX as Signature: ")
-               >>> map Signature
-
-instance encodeJsonSignature :: EncodeJson Signature where
-  encodeJson = unwrap >>> encodeJson
-
-
--- | Keccak-256 hash
-
-newtype Keccak256 = Keccak256 EB.Bytes
-
-mkKeccak256 :: EB.Bytes -> Valid Keccak256
-mkKeccak256 (EB.Bytes bs) =
-  if (B.length bs /= 32)
-  then Left "Keccak-256 hash is expected to be exactly 256 bits"
-  else Right $ Keccak256 (EB.Bytes bs)
-
-derive instance newtypeKeccak256 :: Newtype Keccak256 _
-
-instance showKeccak256 :: Show Keccak256 where
-  show = toHex >>> append "Keccak256#"
-
-derive instance eqKeccak256 :: Eq Keccak256
-
-instance fromHexKeccak256 :: FromHex Keccak256 where
-  fromHex = fromHex >=> mkKeccak256
-
-instance toHexKeccak256 :: ToHex Keccak256 where
-  toHex = unwrap >>> toHex
-
-instance decodeJsonKeccak256 :: DecodeJson Keccak256 where
-  decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode Keccak-256 hash: ")
-               >=> mkKeccak256
-
-instance encodeJsonKeccak256 :: EncodeJson Keccak256 where
-  encodeJson = unwrap >>> encodeJson
-
 
 -- | Contract code
 
-newtype Code = Code EB.Bytes
+newtype Code = Code Bytes
 
 derive instance newtypeCode :: Newtype Code _
 
@@ -278,15 +148,15 @@ instance encodeJsonTransaction :: EncodeJson Transaction where
 
 -- | TxHash
 
-newtype TxHash = TxHash EB.Bytes
+newtype TxHash = TxHash Bytes
 
-mkTxHash :: EB.Bytes -> Valid TxHash
-mkTxHash (EB.Bytes bs) =
+mkTxHash :: Bytes -> Valid TxHash
+mkTxHash (Bytes bs) =
   if (B.length bs /= 32)
   then Left $ "Transaction hash is expected to be exactly 32 bytes "
            <> "but it is "
            <> show (B.length bs)
-  else Right $ TxHash (EB.Bytes bs)
+  else Right $ TxHash (Bytes bs)
 
 derive instance newtypeTxHash :: Newtype TxHash _
 
