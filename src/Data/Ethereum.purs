@@ -1,10 +1,9 @@
 module Data.Ethereum
   ( module EB
-  , module Abi
-  , module N
-  , SyncStatus(..)
-  , BlockNumber
-  , mkBlockNumber
+  , module EA
+  , module EN
+  , module ES
+  , module EL
   , Quantity
   , mkQuantity
   , Address
@@ -14,12 +13,9 @@ module Data.Ethereum
   , rsv
   , Keccak256
   , mkKeccak256
-  , BlockHash
-  , mkBlockHash
   , TxHash
   , mkTxHash
   , Code(..)
-  , Tag(..)
   , Wei(..)
   , Endpoint(..)
   , Contract(..)
@@ -30,7 +26,7 @@ module Data.Ethereum
 import Prelude
 
 import Data.Argonaut.Core (jsonEmptyObject, stringify)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.?))
+import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, assoc, encodeJson, extend)
 import Data.Array (catMaybes)
 import Data.Bifunctor (lmap)
@@ -39,8 +35,10 @@ import Data.ByteString as B
 import Data.Either (Either(Right, Left), either)
 import Data.Ethereum.Abi (Abi)
 import Data.Ethereum.Bytes as EB
-import Data.Ethereum.Abi as Abi
-import Data.Ethereum.Network as N
+import Data.Ethereum.Abi as EA
+import Data.Ethereum.Network as EN
+import Data.Ethereum.Sync as ES
+import Data.Ethereum.Block as EL
 import Data.Foldable (foldl)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
@@ -49,30 +47,6 @@ import Ethereum.Hex (class FromHex, class ToHex, fromHex, toHex)
 type Error = String
 type Valid = Either Error
 
-
-newtype SyncStatus = SyncStatus {
-  startingBlock :: BlockNumber,
-  currentBlock  :: BlockNumber,
-  highestBlock  :: BlockNumber
-}
-
-derive instance eqSyncStatus :: Eq SyncStatus
-
-instance decodeSyncStatus :: DecodeJson SyncStatus where
-  decodeJson json = do
-    obj <- decodeJson json
-    startingBlock <- obj .? "startingBlock"
-    currentBlock <- obj .? "currentBlock"
-    highestBlock <- obj .? "highestBlock"
-    pure $ SyncStatus { startingBlock: startingBlock
-                      , currentBlock:  currentBlock
-                      , highestBlock:  highestBlock
-                      }
-
-instance showSyncStatus :: Show SyncStatus where
-  show (SyncStatus ss) = "startingBlock = '" <> (show ss.startingBlock) <> "', "
-                      <> "currentBlock = '"  <> (show ss.currentBlock)  <> "', "
-                      <> "highestBlock = '"  <> (show ss.highestBlock)  <> "' "
 
 -- | Quantity: a natural number
 
@@ -233,81 +207,6 @@ instance encodeJsonCode :: EncodeJson Code where
   encodeJson = unwrap >>> encodeJson
 
 
--- | Ethereum block number
-
-newtype BlockNumber = BlockNumber I.BigInt
-
-mkBlockNumber :: I.BigInt -> Valid BlockNumber
-mkBlockNumber bi =
-  if (bi < zero)
-  then Left "Can't make a negative block number"
-  else Right $ BlockNumber bi
-
-instance showBlockNumber :: Show BlockNumber where
-  show = toHex >>> append "BlockNumber#"
-
-derive instance eqBlockNumber :: Eq BlockNumber
-
-derive instance newtypeBlockNumber :: Newtype BlockNumber _
-
-instance fromHexBlockNumber :: FromHex BlockNumber where
-  fromHex = fromHex >>> map BlockNumber
-
-instance toHexBlockNumber :: ToHex BlockNumber where
-  toHex = unwrap >>> toHex
-
-instance decodeJsonBlockNumber :: DecodeJson BlockNumber where
-  decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode BlockNumber: ")
-               >=> mkBlockNumber
-
-instance encodeJsonBlockNumber :: EncodeJson BlockNumber where
-  encodeJson = toHex >>> encodeJson
-
-
--- | Ethereum block hash (32 bytes)
-
-newtype BlockHash = BlockHash EB.Bytes
-
-mkBlockHash :: EB.Bytes -> Valid BlockHash
-mkBlockHash (EB.Bytes bs) =
-  if (B.length bs /= 32)
-  then Left "Block hash is expected to be exactly 32 bytes"
-  else Right $ BlockHash (EB.Bytes bs)
-
-instance showBlockHash :: Show BlockHash where
-  show = unwrap >>> toHex >>> append "BlockHash#"
-
-derive instance eqBlockHash :: Eq BlockHash
-
-derive instance newtypeBlockHash :: Newtype BlockHash _
-
-instance toHexBlockHash :: ToHex BlockHash where
-  toHex = unwrap >>> toHex
-
-instance fromHexBlockHash :: FromHex BlockHash where
-  fromHex = fromHex >>> map BlockHash
-
-instance decodeJsonBlockHash :: DecodeJson BlockHash where
-  decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode BlockHash: ")
-               >=> mkBlockHash
-
-instance encodeJsonBlockHash :: EncodeJson BlockHash where
-  encodeJson = unwrap >>> encodeJson
-
--- | Ethereum block tag
-
-data Tag = Earliest -- the earliest/genesis block
-         | Latest   -- the latest mined block
-         | Pending  -- the pending state/transactions
-
-derive instance eqTag :: Eq Tag
-
-instance showTag :: Show Tag where
-  show Earliest = "earlises"
-  show Latest   = "latest"
-  show Pending  = "pending"
 
 
 -- | Ether amount in WEI
