@@ -1,13 +1,15 @@
 module Ethereum
   ( module E
-  , module T
+  , module D
+  , module H
   -- , deployContract
   ) where
 
 -- import Prelude
 
 import Ethereum.Api as E
-import Ethereum.Text as T
+import Ethereum.Hex as H
+import Data.Ethereum as D
 --
 -- deployContract :: E.Address -> E.Abi -> E.Eth E.Contract
 -- deployContract addr abi = do

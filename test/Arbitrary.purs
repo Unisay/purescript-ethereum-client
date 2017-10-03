@@ -7,7 +7,7 @@ import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.ByteString (Encoding(..), Octet)
 import Data.ByteString as B
-import Data.Ethereum (Abi(..), Address, Bytes(Bytes), Code(..), Quantity, TxHash)
+import Data.Ethereum (Abi(..), Address, Bytes(..), Code(..), Quantity, TxHash)
 import Data.Newtype (class Newtype, unwrap)
 import Test.QuickCheck (class Arbitrary, arbitrary)
 import Test.QuickCheck.Gen (Gen, suchThat, vectorOf)

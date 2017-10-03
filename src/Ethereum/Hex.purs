@@ -1,4 +1,4 @@
-module Ethereum.Text
+module Ethereum.Hex
   ( class ToHex
   , class FromHex
   , fromHex

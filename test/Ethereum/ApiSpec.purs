@@ -11,7 +11,7 @@ import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.String.Utils (unsafeRepeat)
 import Ethereum.Api as E
-import Ethereum.Text (toHex)
+import Ethereum.Hex (toHex)
 import Network.Rpc.Json as Rpc
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.Assert (equal)

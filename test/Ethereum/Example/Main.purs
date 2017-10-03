@@ -12,7 +12,7 @@ import Data.Maybe (maybe)
 import Data.Newtype (unwrap)
 import Data.String (joinWith)
 import Ethereum.Api as E
-import Ethereum.Text (toHex)
+import Ethereum.Hex (toHex)
 import Network.HTTP.Affjax (AJAX)
 import Network.Rpc.Json (AffjaxLoggingTransport(..))
 import Test.Unsafe (mkUnsafe)

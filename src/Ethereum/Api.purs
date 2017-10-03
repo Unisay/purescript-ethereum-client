@@ -42,7 +42,7 @@ import Data.Either (Either(Right, Left), either)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
 import Data.Ethereum as E
-import Ethereum.Text (fromHex, toHex)
+import Ethereum.Hex (fromHex, toHex)
 import Network.Rpc.Json as Rpc
 
 type Decoder r = Json -> Either String r

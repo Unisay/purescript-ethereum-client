@@ -1,5 +1,7 @@
 module Data.Ethereum
-  ( Network(..)
+  ( module EB
+  , module Abi  
+  , Network(..)
   , SyncStatus(..)
   , BlockNumber
   , mkBlockNumber
@@ -16,11 +18,7 @@ module Data.Ethereum
   , mkBlockHash
   , TxHash
   , mkTxHash
-  , Abi(..)
-  , mkAbi
   , Code(..)
-  , Bytes(..)
-  , mkBytes
   , Tag(..)
   , Wei(..)
   , Endpoint(..)
@@ -31,7 +29,7 @@ module Data.Ethereum
 
 import Prelude
 
-import Data.Argonaut.Core (Json, jsonEmptyObject, stringify)
+import Data.Argonaut.Core (jsonEmptyObject, stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.?))
 import Data.Argonaut.Encode (class EncodeJson, assoc, encodeJson, extend)
 import Data.Array (catMaybes)
@@ -39,44 +37,16 @@ import Data.Bifunctor (lmap)
 import Data.BigInt as I
 import Data.ByteString as B
 import Data.Either (Either(Right, Left), either)
+import Data.Ethereum.Abi (Abi)
+import Data.Ethereum.Bytes as EB
+import Data.Ethereum.Abi as Abi
 import Data.Foldable (foldl)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
-import Ethereum.Text (class FromHex, class ToHex, fromHex, toHex)
-import Node.Buffer.Unsafe (slice)
+import Ethereum.Hex (class FromHex, class ToHex, fromHex, toHex)
 
 type Error = String
 type Valid = Either Error
-
-newtype Bytes = Bytes B.ByteString
-
-mkBytes :: String -> Bytes
-mkBytes = B.toUTF8 >>> Bytes
-
-sliceBytes :: Int -> Int -> Bytes -> Bytes
-sliceBytes from to (Bytes bs) =
-  Bytes $ B.unsafeFreeze (slice from to (B.unsafeThaw bs))
-
-derive instance newtypeBytes :: Newtype Bytes _
-
-derive instance eqBytes :: Eq Bytes
-
-instance showBytes :: Show Bytes where
-  show = unwrap >>> show
-
-instance toHexBytes :: ToHex Bytes where
-  toHex = unwrap >>> toHex
-
-instance fromHexBytes :: FromHex Bytes where
-  fromHex = fromHex >>> map Bytes
-
-instance decodeJsonBytes :: DecodeJson Bytes where
-  decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode Bytes: ")
-               >>> map Bytes
-
-instance encodeJsonBytes :: EncodeJson Bytes where
-  encodeJson = unwrap >>> toHex >>> encodeJson
 
 data Network = Mainnet
              | Morden
@@ -160,13 +130,13 @@ instance encodeJsonQuantity :: EncodeJson Quantity where
 
 -- | Ethereum address (20 bytes)
 
-newtype Address = Address Bytes
+newtype Address = Address EB.Bytes
 
-mkAddress :: Bytes -> Valid Address
-mkAddress (Bytes bs) =
+mkAddress :: EB.Bytes -> Valid Address
+mkAddress (EB.Bytes bs) =
   if (B.length bs /= 20)
   then Left "Address is expected to be exactly 20 bytes"
-  else Right $ Address (Bytes bs)
+  else Right $ Address (EB.Bytes bs)
 
 derive instance newtypeAddress :: Newtype Address _
 
@@ -192,18 +162,18 @@ instance encodeAddress :: EncodeJson Address where
 
 -- | Ethereum signature used for signing / verification
 
-newtype Signature = Signature Bytes
+newtype Signature = Signature EB.Bytes
 
-mkSignature :: Bytes -> Valid Signature
-mkSignature (Bytes bs) =
+mkSignature :: EB.Bytes -> Valid Signature
+mkSignature (EB.Bytes bs) =
   if (B.isEmpty bs)
   then Left "Signature couldn't be empty"
-  else Right $ Signature (Bytes bs)
+  else Right $ Signature (EB.Bytes bs)
 
-rsv :: Signature -> { r :: Bytes, s :: Bytes, v :: Bytes }
-rsv (Signature bs) = { r : sliceBytes 0 64 bs
-                     , s : sliceBytes 64 128 bs
-                     , v : sliceBytes 128 130 bs
+rsv :: Signature -> { r :: EB.Bytes, s :: EB.Bytes, v :: EB.Bytes }
+rsv (Signature bs) = { r : EB.sliceBytes 0 64 bs
+                     , s : EB.sliceBytes 64 128 bs
+                     , v : EB.sliceBytes 128 130 bs
                      }
 
 derive instance newtypeSignature :: Newtype Signature _
@@ -230,13 +200,13 @@ instance encodeJsonSignature :: EncodeJson Signature where
 
 -- | Keccak-256 hash
 
-newtype Keccak256 = Keccak256 Bytes
+newtype Keccak256 = Keccak256 EB.Bytes
 
-mkKeccak256 :: Bytes -> Valid Keccak256
-mkKeccak256 (Bytes bs) =
+mkKeccak256 :: EB.Bytes -> Valid Keccak256
+mkKeccak256 (EB.Bytes bs) =
   if (B.length bs /= 32)
   then Left "Keccak-256 hash is expected to be exactly 256 bits"
-  else Right $ Keccak256 (Bytes bs)
+  else Right $ Keccak256 (EB.Bytes bs)
 
 derive instance newtypeKeccak256 :: Newtype Keccak256 _
 
@@ -262,7 +232,7 @@ instance encodeJsonKeccak256 :: EncodeJson Keccak256 where
 
 -- | Contract code
 
-newtype Code = Code Bytes
+newtype Code = Code EB.Bytes
 
 derive instance newtypeCode :: Newtype Code _
 
@@ -320,13 +290,13 @@ instance encodeJsonBlockNumber :: EncodeJson BlockNumber where
 
 -- | Ethereum block hash (32 bytes)
 
-newtype BlockHash = BlockHash Bytes
+newtype BlockHash = BlockHash EB.Bytes
 
-mkBlockHash :: Bytes -> Valid BlockHash
-mkBlockHash (Bytes bs) =
+mkBlockHash :: EB.Bytes -> Valid BlockHash
+mkBlockHash (EB.Bytes bs) =
   if (B.length bs /= 32)
   then Left "Block hash is expected to be exactly 32 bytes"
-  else Right $ BlockHash (Bytes bs)
+  else Right $ BlockHash (EB.Bytes bs)
 
 instance showBlockHash :: Show BlockHash where
   show = unwrap >>> toHex >>> append "BlockHash#"
@@ -389,28 +359,6 @@ instance decodeJsonWei :: DecodeJson Wei where
                >>> map Wei
 
 
--- | Application Binary Interface
--- | https://solidity.readthedocs.io/en/develop/abi-spec.html
--- | TODO: implement Abi algebra
-
-newtype Abi = Abi Bytes
-
-mkAbi :: Json -> Abi
-mkAbi = stringify >>> mkBytes >>> Abi
-
-derive instance newtypeAbi :: Newtype Abi _
-
-derive instance eqAbi :: Eq Abi
-
-instance showAbi :: Show Abi where
-  show = unwrap >>> show >>> append "ABI#"
-
-instance toHexAbi :: ToHex Abi where
-  toHex = unwrap >>> toHex
-
-instance encodeJson :: EncodeJson Abi where
-  encodeJson = unwrap >>> encodeJson
-
 -- | Transaction
 
 newtype Transaction = Transaction
@@ -454,15 +402,15 @@ instance encodeJsonTransaction :: EncodeJson Transaction where
 
 -- | TxHash
 
-newtype TxHash = TxHash Bytes
+newtype TxHash = TxHash EB.Bytes
 
-mkTxHash :: Bytes -> Valid TxHash
-mkTxHash (Bytes bs) =
+mkTxHash :: EB.Bytes -> Valid TxHash
+mkTxHash (EB.Bytes bs) =
   if (B.length bs /= 32)
   then Left $ "Transaction hash is expected to be exactly 32 bytes "
            <> "but it is "
            <> show (B.length bs)
-  else Right $ TxHash (Bytes bs)
+  else Right $ TxHash (EB.Bytes bs)
 
 derive instance newtypeTxHash :: Newtype TxHash _
 

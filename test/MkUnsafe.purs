@@ -10,6 +10,7 @@ import Data.ByteString (ByteString, Encoding(..))
 import Data.ByteString as B
 import Data.Either (Either, either)
 import Data.Ethereum as E
+import Data.Ethereum.Bytes (Bytes(..))
 import Data.Maybe (Maybe(Nothing, Just))
 
 
@@ -19,8 +20,8 @@ class MkUnsafe i o | o -> i where
 instance mkUnsafeByteString :: MkUnsafe String ByteString where
   mkUnsafe s = unsafeJust (B.fromString s Hex)
 
-instance mkUnsafeBytes :: MkUnsafe String E.Bytes where
-  mkUnsafe = mkUnsafe >>> E.Bytes
+instance mkUnsafeBytes :: MkUnsafe String Bytes where
+  mkUnsafe = mkUnsafe >>> Bytes
 
 instance mkUnsafeBlockHash :: MkUnsafe String E.BlockHash where
   mkUnsafe = mkUnsafe >>> E.mkBlockHash >>> unsafeRight
