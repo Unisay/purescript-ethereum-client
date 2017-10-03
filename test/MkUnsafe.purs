@@ -10,6 +10,7 @@ import Data.ByteString (ByteString, Encoding(..))
 import Data.ByteString as B
 import Data.Either (Either, either)
 import Data.Ethereum as E
+import Data.Ethereum.Contract (Code(..))
 import Data.Ethereum.Bytes (Bytes(..))
 import Data.Maybe (Maybe(Nothing, Just))
 
@@ -38,8 +39,8 @@ instance mkUnsafeSignature :: MkUnsafe String E.Signature where
 instance mkUnsafeQuantity :: MkUnsafe Int E.Quantity where
   mkUnsafe = E.mkQuantity >>> unsafeRight
 
-instance mkUnsafeCode :: MkUnsafe String E.Code where
-  mkUnsafe = mkUnsafe >>> E.Code
+instance mkUnsafeCode :: MkUnsafe String Code where
+  mkUnsafe = mkUnsafe >>> Code
 
 instance mkUnsafeTxHash :: MkUnsafe String E.TxHash where
   mkUnsafe = mkUnsafe >>> E.mkTxHash >>> unsafeRight

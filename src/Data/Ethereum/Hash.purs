@@ -1,6 +1,8 @@
 module Data.Ethereum.Hash
   ( Keccak256
   , mkKeccak256
+  , TxHash
+  , mkTxHash
   ) where
 
 import Prelude
@@ -47,3 +49,38 @@ instance decodeJsonKeccak256 :: DecodeJson Keccak256 where
 
 instance encodeJsonKeccak256 :: EncodeJson Keccak256 where
   encodeJson = unwrap >>> encodeJson
+
+
+
+-- | TxHash
+
+newtype TxHash = TxHash Bytes
+
+mkTxHash :: Bytes -> Valid TxHash
+mkTxHash (Bytes bs) =
+  if (B.length bs /= 32)
+  then Left $ "Transaction hash is expected to be exactly 32 bytes "
+           <> "but it is "
+           <> show (B.length bs)
+  else Right $ TxHash (Bytes bs)
+
+derive instance newtypeTxHash :: Newtype TxHash _
+
+instance showTxHash :: Show TxHash where
+  show = unwrap >>> toHex >>> append "TxHash#"
+
+derive instance eqTxHash :: Eq TxHash
+
+instance fromHexTxHash :: FromHex TxHash where
+  fromHex = fromHex >=> mkTxHash
+
+instance toHexTxHash :: ToHex TxHash where
+  toHex = unwrap >>> toHex
+
+instance decodeJsonTxHash :: DecodeJson TxHash where
+  decodeJson = decodeJson
+               >=> fromHex >>> lmap (append "Failed to decode transaction hash: ")
+               >=> mkTxHash
+
+instance encodeJsonTxHash :: EncodeJson TxHash where
+  encodeJson = toHex >>> encodeJson

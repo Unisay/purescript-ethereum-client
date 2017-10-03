@@ -24,8 +24,8 @@ newtype Signature = Signature Bytes
 
 mkSignature :: Bytes -> Valid Signature
 mkSignature (Bytes bs) =
-  if (B.isEmpty bs)
-  then Left "Signature couldn't be empty"
+  if (B.length bs /= 32)
+  then Left "Signature is expected to be exactly 256 bits"
   else Right $ Signature (Bytes bs)
 
 rsv :: Signature -> { r :: Bytes, s :: Bytes, v :: Bytes }
