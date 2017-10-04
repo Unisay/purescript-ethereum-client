@@ -9,17 +9,17 @@ import Control.Monad.Eff.Console (CONSOLE)
 import Control.Monad.Eff.Random (RANDOM)
 import Data.ByteString (toUTF8)
 import Data.Either (Either(..))
-import Data.Maybe (fromJust, maybe)
+import Data.Maybe (maybe)
 import Data.String (joinWith)
 import Ethereum.Api as E
-import Network.Rpc.Json (AffjaxLoggingTransport(..))
-import Ethereum.Text (fromHex, toHex)
+import Ethereum.Text (toHex)
 import Network.HTTP.Affjax (AJAX)
-import Partial.Unsafe (unsafePartial)
+import Network.Rpc.Json (AffjaxLoggingTransport(..))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.Assert as Assert
 import Test.Unit.Console (TESTOUTPUT)
 import Test.Unit.Main (runTest)
+import Test.Unsafe (mkUnsafe)
 
 main :: ∀ e. Eff ( console    :: CONSOLE
                  , testOutput :: TESTOUTPUT
@@ -56,7 +56,7 @@ info = do
   let defaultBlock = Left recentBlockNumber
   balance <- E.ethGetBalance coinbase defaultBlock
   accountTxCount <- E.ethGetTransactionCount coinbase defaultBlock
-  let blockHash = unsafePartial $ fromJust $ fromHex "b903239f8543d04b5dc1ba6579132b143087c68db1b2168786408fcbce568238"
+  let blockHash = mkUnsafe "b903239f8543d04b5dc1ba6579132b143087c68db1b2168786408fcbce568238"
   blockTxCount <- E.ethGetBlockTransactionCountByHash blockHash
   uncleCount <- E.ethGetUncleCountByBlockNumber defaultBlock
   pure $ """
