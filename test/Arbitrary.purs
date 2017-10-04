@@ -11,7 +11,7 @@ import Data.Ethereum (Abi(..), Address, Bytes(..), Code(..), Quantity, TxHash)
 import Data.Newtype (class Newtype, unwrap)
 import Test.QuickCheck (class Arbitrary, arbitrary)
 import Test.QuickCheck.Gen (Gen, suchThat, vectorOf)
-import Test.Unsafe (class MkUnsafe, mkUnsafe)
+import Test.MkUnsafe (class MkUnsafe, mkUnsafe)
 import Type.Quotient (mkQuotient)
 
 

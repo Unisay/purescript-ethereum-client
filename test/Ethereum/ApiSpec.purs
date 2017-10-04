@@ -1,21 +1,19 @@
 module Ethereum.Api.Spec where
 
 import Prelude
-
-import Control.Monad.Aff (Aff)
+import Ethereum.Api as E
+import Network.Rpc.Json as Rpc
 import Control.Monad.Eff.Console (CONSOLE)
-import Data.Argonaut.Core (Json, jsonEmptyObject, stringify)
+import Data.Argonaut.Core (jsonEmptyObject, stringify)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
 import Data.BigInt (fromInt)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.String.Utils (unsafeRepeat)
-import Ethereum.Api as E
 import Ethereum.Hex (toHex)
-import Network.Rpc.Json as Rpc
+import Test.MkUnsafe (mkUnsafe)
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.Assert (equal)
-import Test.Unsafe (mkUnsafe)
 
 spec :: ∀ e. TestSuite (console :: CONSOLE | e)
 spec = do
@@ -210,7 +208,6 @@ data Match a = Match Rpc.Request (Rpc.Response a)
 
 instance matchTransport :: EncodeJson a =>
                            Rpc.Transport (Match a) (console :: CONSOLE | e) where
-  call :: Match a -> Rpc.Request -> Aff (console :: CONSOLE | e) (Rpc.Response Json)
   call (Match expectedRequest response) actualRequest = do
     resp <- if (expectedRequest == actualRequest)
             then pure $ encodeJson <$> response

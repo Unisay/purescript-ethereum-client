@@ -1,4 +1,4 @@
-module Test.Unsafe where
+module Test.MkUnsafe where
 
 import Prelude
 

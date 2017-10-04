@@ -12,7 +12,7 @@ import Data.Traversable (traverse)
 import Ethereum.Hex (fromHex, toHex)
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.Assert (equal)
-import Test.Unsafe (mkUnsafe)
+import Test.MkUnsafe (mkUnsafe)
 
 spec :: ∀ e. TestSuite e
 spec = do

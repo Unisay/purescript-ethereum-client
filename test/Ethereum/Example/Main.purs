@@ -15,7 +15,7 @@ import Ethereum.Api as E
 import Ethereum.Hex (toHex)
 import Network.HTTP.Affjax (AJAX)
 import Network.Rpc.Json (AffjaxLoggingTransport(..))
-import Test.Unsafe (mkUnsafe)
+import Test.MkUnsafe (mkUnsafe)
 
 main :: ∀ e. Eff (console :: CONSOLE, ajax :: AJAX | e) Unit
 main = launchAff_ $ E.run transport info >>= log

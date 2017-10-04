@@ -14,7 +14,7 @@ import Test.QuickCheck (Result(..), assertEquals)
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.Assert (equal)
 import Test.Unit.QuickCheck (quickCheck)
-import Test.Unsafe (mkUnsafe)
+import Test.MkUnsafe (mkUnsafe)
 
 spec :: ∀ e. TestSuite (random :: RANDOM | e)
 spec = suite "Json" do

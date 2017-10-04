@@ -12,6 +12,7 @@ import Test.Unit.Main (runTest)
 import Ethereum.Api.Spec as Api
 import Ethereum.Hex.Spec as Hex
 import Ethereum.Json.Spec as Json
+import Data.Ethereum.Abi.Type.Spec as Type
 
 
 main :: ∀ e. Eff ( console    :: CONSOLE
@@ -25,3 +26,4 @@ main = runTest do
   Api.spec
   Json.spec
   Hex.spec
+  Type.spec
