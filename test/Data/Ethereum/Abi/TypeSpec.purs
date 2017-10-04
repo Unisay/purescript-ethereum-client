@@ -19,6 +19,7 @@ spec = do
     test "mkSignedInt D16"   $ quickCheck propSignedInt16
     test "mkBytes D8"        $ quickCheck propBytes8
     test "mkBytes D16"       $ quickCheck propBytes16
+    test "mkBool"            $ quickCheck propBool
 
 
 propUnsignedInt8 :: Int -> Boolean
@@ -44,3 +45,6 @@ propBytes8 b bs =
 propBytes16 :: Int -> ByteString -> Boolean
 propBytes16 b bs =
   let res = mkBytes d16 bs in if (B.length bs == 16) then isJust res else isNothing res
+
+propBool :: Boolean -> Boolean
+propBool b = true -- TODO
