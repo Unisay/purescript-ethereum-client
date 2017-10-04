@@ -1,11 +1,10 @@
 module Data.Ethereum.Abi.Class where
 
-import Data.ByteString (ByteString)
 import Prelude (not)
 
 class AbiType a where
   isStatic :: a -> Boolean
-  encode :: a -> ByteString
+  enc :: a -> String
 
 isDynamic :: ∀ a. AbiType a => a -> Boolean
 isDynamic a = not (isStatic a)
