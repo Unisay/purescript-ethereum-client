@@ -28,7 +28,7 @@ import Data.ByteString (ByteString)
 import Data.Ethereum.Abi.Class (class AbiType)
 import Data.Int (pow)
 import Data.Maybe (Maybe(..))
-import Data.Typelevel.Num (class LtEq, class Mod, class Pos, type (:*), D0, D1, D19, D2, D24, D32, D5, D6, D8, D80, toInt)
+import Data.Typelevel.Num (class LtEq, class Mod, class Pos, type (:*), D0, D1, D19, D2, D24, D3, D5, D6, D8, D80, toInt)
 
 
 newtype Address = Address (UnsignedInt (D1 :* D6 :* D0))
@@ -72,7 +72,8 @@ mkSignedInt m i = let p = 2 `pow` (toInt m - 1)
 
 
 -- | bytes<M>: binary type of M bytes, 0 < M <= 32
-class (Pos m, LtEq m D32) <= From1to32 m
+class (Pos m, LtEq m (D3 :* D2)) <= From1to32 m
+instance from1to32TypeLevel :: (Pos m, LtEq m (D3 :* D2)) => From1to32 m
 
 newtype Bytes m = Bytes ByteString
 -- instance abiTypeBytes :: From1to32 m =>
