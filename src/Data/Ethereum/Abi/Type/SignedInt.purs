@@ -12,7 +12,7 @@ import Data.Ethereum.Abi.Class (class AbiType)
 import Data.Ethereum.Abi.Type.Class (class Dividend8)
 import Data.String (joinWith)
 import Data.String as S
-import Data.Typelevel.Num (type (:*), D1, D6, D8, d16, d8, toInt)
+import Data.Typelevel.Num (class Nat, type (:*), D1, D6, D8, d16, d8, toInt)
 import Data.Typelevel.Undefined (undefined)
 import Ethereum.Hex (class FromHex, class ToHex, fromHex, toHex)
 import Test.QuickCheck (class Arbitrary)
@@ -31,7 +31,8 @@ instance abiTypeSignedInt :: Dividend8 m => AbiType (SignedInt m) where
         lenInNibbles = S.length s
         align n = let r = n `mod` 64 in if r == 0 then n else n + 64 - r
         nibblesToPad = align (lenInNibbles) - lenInNibbles
-        padding = joinWith "" $ A.replicate nibblesToPad "0"
+        digit = if (i < zero) then "f" else "0"
+        padding = joinWith "" $ A.replicate nibblesToPad digit
     in "0x" <> padding <> s
 
 instance eqSignedInt :: Dividend8 m => Eq (SignedInt m) where
@@ -53,22 +54,24 @@ instance semiringSignedInt :: Dividend8 m => Semiring (SignedInt m) where
   add (SignedInt m l) (SignedInt _ r) = SignedInt m (l + r)
 
 instance arbitrarySignedInt8 :: Arbitrary (SignedInt D8) where
-  arbitrary = SignedInt d8 <<< fromInt <$> chooseInt 0 255
+  arbitrary = SignedInt d8 <<< fromInt <$> chooseInt (-128) 127
 
 instance arbitrarySignedInt16 :: Arbitrary (SignedInt (D1 :* D6)) where
-  arbitrary = SignedInt d16 <<< fromInt <$> chooseInt 0 65535
+  arbitrary = SignedInt d16 <<< fromInt <$> chooseInt (-32768) 32767
 
 
 -- | Signed n-bit integer: [0, 2^n)
 mkSignedInt :: ∀ m. Dividend8 m => m -> BigInt -> Either String (SignedInt m)
-mkSignedInt m i | i < zero =
-  Left $ "SignedInt " <> show (toInt m)
-                        <> " can't hold a negative value "
-                        <> show i
-mkSignedInt m i =
-  let b = (fromInt 2) `pow` (fromInt $ toInt m)
-  in if b <= i
-     then Left $ "SignedInt " <> show (toInt m)
-                                <> " can't hold a value greater than or equal to "
-                                <> show b
-     else Right $ SignedInt m i
+mkSignedInt m = withBounds (lowerBound m) (upperBound m) where
+  withBounds l u i
+    | i < l = Left $ "SignedInt " <> show (toInt m) <> " can't hold a value "
+                                  <> toString i <> " < " <> toString l
+    | i > u = Left $ "SignedInt " <> show (toInt m) <> " can't hold a value "
+                                  <> toString i <> " >= " <> toString u
+    | otherwise = Right $ SignedInt m i
+
+upperBound :: ∀ n. Nat n => n -> BigInt
+upperBound n = ((fromInt 2) `pow` fromInt (toInt n - 1)) - one
+
+lowerBound :: ∀ n. Nat n => n -> BigInt
+lowerBound n = zero - (fromInt 2) `pow` fromInt (toInt n - 1)

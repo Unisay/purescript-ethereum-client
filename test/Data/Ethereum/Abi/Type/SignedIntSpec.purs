@@ -31,11 +31,11 @@ instance arbitraryBigInt :: Arbitrary ArbBigInt where
 
 propSignedInt8 :: ArbBigInt -> Boolean
 propSignedInt8 (ArbBigInt i) =
-  let v = mkSignedInt d8 i in if (zero <= i && i < fromInt 256) then isRight v else isLeft v
+  let v = mkSignedInt d8 i in if (fromInt (-128) <= i && i < fromInt 128) then isRight v else isLeft v
 
 propSignedInt16 :: ArbBigInt -> Boolean
 propSignedInt16 (ArbBigInt i) =
-  let v = mkSignedInt d16 i in if (zero <= i && i < fromInt 65536) then isRight v else isLeft v
+  let v = mkSignedInt d16 i in if (fromInt (-32768) <= i && i < fromInt 32768) then isRight v else isLeft v
 
 propSignedIntEnc8 :: SignedInt D8 -> Result
 propSignedIntEnc8 = propTypeEncMultiple32b
@@ -56,8 +56,6 @@ propTypeEncMultiple32b t =
   in res <?> ("propTypeEncMultiple32b did not hold for " <> show t)
 
 propDecodableEnc :: ∀ a. AbiType a => Eq a => Show a => FromHex a => a -> Result
-propDecodableEnc unsigned = either Failed (const Success) do
+propDecodableEnc unsigned = either (Failed <<< append (enc unsigned <> ": ")) (const Success) do
   decoded <- fromHex $ enc unsigned
   pure $ decoded == unsigned
-
--- TODO: write properties to check padding for positive and negative cases
