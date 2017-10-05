@@ -1,11 +1,8 @@
 module Data.Ethereum.Abi.Type
-  ( Address
-  , Bool
-  , mkBool
+  ( module UnsignedInt
+  , Address
   , Bytes
   , mkBytes
-  , UnsignedInt
-  , mkUnsignedInt
   , SignedInt
   , mkSignedInt
   , UnsignedFixed
@@ -16,21 +13,22 @@ module Data.Ethereum.Abi.Type
   , mkFixedLenArray
   , VarLenArray
   , mkVarLenArray
-  , class Dividend8
   , class From1to32
   , class From1to80
   ) where
 
 import Prelude
-
-import Data.Array as A
-import Data.BigInt (BigInt, fromInt, pow, toBase)
-import Data.ByteString (ByteString)
 import Data.ByteString as B
-import Data.ByteString.Encode (int32be)
+import Data.Array as A
+import Data.BigInt (BigInt, fromInt, pow)
+import Data.ByteString (ByteString)
 import Data.Ethereum.Abi.Class (class AbiType)
+import Data.Ethereum.Abi.Type.Class (class Dividend8)
+import Data.Ethereum.Abi.Type.UnsignedInt as UnsignedInt
+import Data.Ethereum.Abi.Type.UnsignedInt (UnsignedInt)
 import Data.Maybe (Maybe(..))
-import Data.Typelevel.Num (class LtEq, class Mod, class Pos, type (:*), D0, D1, D19, D2, D24, D3, D5, D6, D8, D80, d8, toInt)
+import Data.Typelevel.Num (class LtEq, class Pos, type (:*), D0, D1, D19, D2, D24, D3, D6, D8, D80, toInt)
+
 
 
 newtype Address = Address (UnsignedInt (D1 :* D6 :* D0))
@@ -39,32 +37,6 @@ newtype Address = Address (UnsignedInt (D1 :* D6 :* D0))
 --   isStatic _ = true
 --   encode (Address uint) = ?x
 
-
-newtype Bool = Bool (UnsignedInt D8)
--- instance abiTypeBool :: AbiType Bool where isStatic _ = true
-
-mkBool :: Boolean -> Bool
-mkBool false = Bool (UnsignedInt d8 zero)
-mkBool true = Bool (UnsignedInt d8 one)
-
-class (Pos m, LtEq m (D2 :* D5 :* D6), Mod m D8 D0) <= Dividend8 m
-instance dividend8TypeLevel :: (Pos m, LtEq m (D2 :* D5 :* D6), Mod m D8 D0) => Dividend8 m
-
--- | uint<M>: unsigned integer type of M bits, 0 < M <= 256, M % 8 == 0
-data UnsignedInt m = UnsignedInt m BigInt
-
-instance abiTypeUnsignedInt :: Dividend8 m => AbiType (UnsignedInt m) where
-  isStatic _ = true
-  -- uint<M>: enc(X) is the big-endian encoding of X,
-  -- padded on the higher-order (left) side with zero-bytes
-  -- such that the length is a multiple of 32 bytes.
-  enc (UnsignedInt m i) = toBase 16 i
-
--- | Unsigned n-bit integer: [0, 2^n)
-mkUnsignedInt :: ∀ m. Dividend8 m => m -> BigInt -> Maybe (UnsignedInt m)
-mkUnsignedInt m i
-  | i >= zero && i < (fromInt 2) `pow` (fromInt $ toInt m) = Just $ UnsignedInt m i
-  | otherwise = Nothing
 
 
 -- | int<M>: two’s complement signed integer type of M bits, 0 < M <= 256, M % 8 == 0
