@@ -5,15 +5,20 @@ import Prelude
 import Control.Monad.Gen (chooseInt)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
+import Data.BigInt (BigInt)
+import Data.BigInt as I
 import Data.ByteString (Encoding(..), Octet)
 import Data.ByteString as B
 import Data.Ethereum (Abi(..), Address, Bytes(..), Code(..), Quantity, TxHash)
 import Data.Newtype (class Newtype, unwrap)
+import Test.MkUnsafe (class MkUnsafe, mkUnsafe)
 import Test.QuickCheck (class Arbitrary, arbitrary)
 import Test.QuickCheck.Gen (Gen, suchThat, vectorOf)
-import Test.MkUnsafe (class MkUnsafe, mkUnsafe)
 import Type.Quotient (mkQuotient)
 
+newtype ArbBigInt = ArbBigInt BigInt
+instance arbitraryBigInt :: Arbitrary ArbBigInt where
+  arbitrary = ArbBigInt <<< I.fromInt <$> arbitrary
 
 newtype Byte = Byte Octet
 derive instance newtypeByte :: Newtype Byte _

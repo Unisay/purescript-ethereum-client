@@ -1,10 +1,9 @@
 module Data.Ethereum.Abi.Type
   ( module UnsignedInt
+  , module SignedInt
   , Address
   , Bytes
   , mkBytes
-  , SignedInt
-  , mkSignedInt
   , UnsignedFixed
   , mkUnsignedFixed
   , SignedFixed
@@ -20,10 +19,11 @@ module Data.Ethereum.Abi.Type
 import Prelude
 import Data.ByteString as B
 import Data.Array as A
-import Data.BigInt (BigInt, fromInt, pow)
 import Data.ByteString (ByteString)
 import Data.Ethereum.Abi.Class (class AbiType)
 import Data.Ethereum.Abi.Type.Class (class Dividend8)
+import Data.Ethereum.Abi.Type.SignedInt as SignedInt
+import Data.Ethereum.Abi.Type.SignedInt (SignedInt)
 import Data.Ethereum.Abi.Type.UnsignedInt as UnsignedInt
 import Data.Ethereum.Abi.Type.UnsignedInt (UnsignedInt)
 import Data.Maybe (Maybe(..))
@@ -36,19 +36,6 @@ newtype Address = Address (UnsignedInt (D1 :* D6 :* D0))
 -- instance abiTypeAddress :: AbiType Address where
 --   isStatic _ = true
 --   encode (Address uint) = ?x
-
-
-
--- | int<M>: two’s complement signed integer type of M bits, 0 < M <= 256, M % 8 == 0
-newtype SignedInt m  = SignedInt BigInt
--- instance abiTypeSignedInt :: Dividend8 m => AbiType (SignedInt m) where isStatic _ = true
-
--- | Signed n-bit integer: [−2^(n−1), 2^(n−1))
-mkSignedInt :: ∀ m. Dividend8 m => m -> BigInt -> Maybe (SignedInt m)
-mkSignedInt m i = let p = (fromInt 2) `pow` fromInt (toInt m - 1)
-                  in if (-p <= i && i < p)
-                     then Just $ SignedInt i
-                     else Nothing
 
 
 -- | bytes<M>: binary type of M bytes, 0 < M <= 32
