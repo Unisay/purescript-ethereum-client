@@ -1,8 +1,6 @@
 module Data.Ethereum.Abi.Type.UnsignedInt
   ( UnsignedInt
   , mkUnsignedInt
-  , Bool
-  , mkBool
   ) where
 
 import Prelude
@@ -14,6 +12,7 @@ import Data.Ethereum.Abi.Type.Class (class Dividend8)
 import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
 import Data.Typelevel.Num (type (:*), D1, D6, D8, d16, d8, toInt)
+import Data.Typelevel.Undefined (undefined)
 import Test.QuickCheck (class Arbitrary)
 import Test.QuickCheck.Gen (chooseInt)
 
@@ -34,8 +33,16 @@ instance abiTypeUnsignedInt :: Dividend8 m => AbiType (UnsignedInt m) where
         padding = joinWith "" $ A.replicate nibblesToPad "0"
     in "0x" <> padding <> s
 
+derive instance eqUnsignedInt :: (Eq m, Dividend8 m) => Eq (UnsignedInt m)
+
 instance showUnsignedInt :: Dividend8 m => Show (UnsignedInt m) where
   show (UnsignedInt m i) = "UnsignedInt " <> show (toInt m) <> " " <> toString i
+
+instance semiringUnsignedInt :: Dividend8 m => Semiring (UnsignedInt m) where
+  zero = UnsignedInt undefined zero
+  one = UnsignedInt undefined one
+  mul (UnsignedInt m l) (UnsignedInt _ r) = UnsignedInt m (l * r)
+  add (UnsignedInt m l) (UnsignedInt _ r) = UnsignedInt m (l + r)
 
 instance arbitraryUnsignedInt8 :: Arbitrary (UnsignedInt D8) where
   arbitrary = UnsignedInt d8 <<< fromInt <$> chooseInt 0 255
@@ -49,13 +56,3 @@ mkUnsignedInt :: ∀ m. Dividend8 m => m -> BigInt -> Maybe (UnsignedInt m)
 mkUnsignedInt m i
   | i >= zero && i < (fromInt 2) `pow` (fromInt $ toInt m) = Just $ UnsignedInt m i
   | otherwise = Nothing
-
-
-
-
-newtype Bool = Bool (UnsignedInt D8)
--- instance abiTypeBool :: AbiType Bool where isStatic _ = true
-
-mkBool :: Boolean -> Bool
-mkBool false = Bool (UnsignedInt d8 zero)
-mkBool true = Bool (UnsignedInt d8 one)

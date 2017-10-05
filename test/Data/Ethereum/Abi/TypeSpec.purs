@@ -23,7 +23,6 @@ spec = do
     test "mkSignedInt D16"    $ quickCheck propSignedInt16
     test "mkBytes D8"         $ quickCheck propBytes8
     test "mkBytes D16"        $ quickCheck propBytes16
-    test "mkBool"             $ quickCheck propBool
     test "enc UnsignedInt 8"  $ quickCheck propUnsignedIntEnc8
     test "enc UnsignedInt 16" $ quickCheck propUnsignedIntEnc16
 
@@ -55,9 +54,6 @@ propBytes8 bs =
 propBytes16 :: ByteString -> Boolean
 propBytes16 bs =
   let res = mkBytes d16 bs in if (B.length bs == 16) then isJust res else isNothing res
-
-propBool :: Boolean -> Boolean
-propBool b = true -- TODO
 
 propUnsignedIntEnc8 :: UnsignedInt D8 -> Result
 propUnsignedIntEnc8 = propTypeEncMultiple32b
