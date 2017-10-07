@@ -8,10 +8,10 @@ import Prelude
 
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Bifunctor (lmap)
 import Data.Ethereum.Abi (Abi)
 import Data.Ethereum.Address (Address)
 import Data.Ethereum.Bytes (Bytes)
+import Data.Ethereum.Error (clarify, squashErrors)
 import Data.Ethereum.Hash (TxHash)
 import Data.Newtype (class Newtype, unwrap)
 import Ethereum.Hex (class FromHex, class ToHex, fromHex, toHex)
@@ -62,8 +62,8 @@ instance toHexCode :: ToHex Code where
 
 instance decodeJsonCode :: DecodeJson Code where
   decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode Code: ")
-               >>> map Code
+    >=> fromHex >>> clarify "Failed to decode Code: " >>> squashErrors
+    >>> map Code
 
 instance encodeJsonCode :: EncodeJson Code where
   encodeJson = unwrap >>> encodeJson

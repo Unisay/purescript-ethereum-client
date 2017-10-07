@@ -10,6 +10,7 @@ import Data.BigInt (BigInt, fromInt, pow, toBase, toString)
 import Data.Either (Either(Right, Left))
 import Data.Ethereum.Abi.Class (class AbiType)
 import Data.Ethereum.Abi.Type.Class (class Dividend8)
+import Data.Ethereum.Error (Errors, mkErrors)
 import Data.String (joinWith)
 import Data.String as S
 import Data.Typelevel.Num (type (:*), D1, D6, D8, d16, d8, toInt)
@@ -60,15 +61,13 @@ instance arbitraryUnsignedInt16 :: Arbitrary (UnsignedInt (D1 :* D6)) where
 
 
 -- | Unsigned n-bit integer: [0, 2^n)
-mkUnsignedInt :: ∀ m. Dividend8 m => m -> BigInt -> Either String (UnsignedInt m)
+mkUnsignedInt :: ∀ m. Dividend8 m => m -> BigInt -> Either Errors (UnsignedInt m)
 mkUnsignedInt m i | i < zero =
-  Left $ "UnsignedInt " <> show (toInt m)
-                        <> " can't hold a negative value "
-                        <> show i
+  Left <<< mkErrors $
+    "UnsignedInt " <> show (toInt m) <> " can't hold a negative value " <> show i
 mkUnsignedInt m i =
   let b = (fromInt 2) `pow` (fromInt $ toInt m)
   in if b <= i
-     then Left $ "UnsignedInt " <> show (toInt m)
-                                <> " can't hold a value greater than or equal to "
-                                <> show b
+     then Left <<< mkErrors $
+       "UnsignedInt " <> show (toInt m) <> " can't hold a value greater than or equal to " <> show b
      else Right $ UnsignedInt m i

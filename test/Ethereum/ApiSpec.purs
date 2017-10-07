@@ -1,8 +1,7 @@
 module Ethereum.Api.Spec where
 
 import Prelude
-import Ethereum.Api as E
-import Network.Rpc.Json as Rpc
+
 import Control.Monad.Eff.Console (CONSOLE)
 import Data.Argonaut.Core (jsonEmptyObject, stringify)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson, (:=), (~>))
@@ -10,7 +9,9 @@ import Data.BigInt (fromInt)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.String.Utils (unsafeRepeat)
+import Ethereum.Api as E
 import Ethereum.Hex (toHex)
+import Network.Rpc.Json as Rpc
 import Test.MkUnsafe (mkUnsafe)
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.Assert (equal)
@@ -24,7 +25,7 @@ spec = do
         address = mkUnsafe $ unsafeRepeat 20 "20"
         latestBlock = Right E.Latest
         bytes = mkUnsafe $ unsafeRepeat 64 "64"
-        quantity = mkUnsafe 42
+        quantity = mkUnsafe $ fromInt 42
         code = mkUnsafe $ unsafeRepeat 16 "16"
         signature = mkUnsafe $ unsafeRepeat 32 "32"
 
@@ -78,12 +79,12 @@ spec = do
       let rq = Rpc.Request { id: 1
                            , method: "eth_getStorageAt"
                            , params: [ toHex address
-                                     , toHex 42
+                                     , toHex quantity
                                      , "latest"
                                      ]
                            }
           rp = Rpc.Response 1 $ pure bytes
-          eth = E.ethGetStorageAt address 42 latestBlock
+          eth = E.ethGetStorageAt address quantity latestBlock
       actual <- E.run (Match rq rp) eth
       bytes `equal` actual
 
@@ -161,11 +162,11 @@ spec = do
 
     let transaction = E.Transaction { from: address
                                     , to: Just address
-                                    , gas: Just $ mkUnsafe 600000
+                                    , gas: Just quantity
                                     , gasPrice: Nothing
                                     , value: Nothing
                                     , data: Left $ E.Code (mkUnsafe "00")
-                                    , nonce: Just $ mkUnsafe 42
+                                    , nonce: Just quantity
                                     }
 
     test "eth_sendTransaction" do

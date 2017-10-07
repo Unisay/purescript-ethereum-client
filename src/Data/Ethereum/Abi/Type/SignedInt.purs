@@ -7,22 +7,19 @@ module Data.Ethereum.Abi.Type.SignedInt
   ) where
 
 import Prelude
+
 import Data.Array as A
-import Data.BigInt as I
-import Data.String as S
 import Data.BigInt (BigInt, xor)
-import Data.Either (Either(Right, Left), note)
+import Data.BigInt as I
+import Data.Either (Either(Right, Left))
 import Data.Ethereum.Abi.Class (class AbiType)
 import Data.Ethereum.Abi.Type.Class (class Dividend8)
-import Data.Maybe (fromJust)
-import Data.NonEmpty (NonEmpty(..))
-import Data.String (fromCharArray, joinWith)
-import Data.Typelevel.Num (class Nat, type (:*), D1, D4, D6, D8, d16, d64, d8, toInt)
+import Data.Ethereum.Error (Errors, mkErrors, noteErrors)
+import Data.String (joinWith)
+import Data.String as S
+import Data.Typelevel.Num (class Nat, toInt)
 import Data.Typelevel.Undefined (undefined)
 import Ethereum.Hex (class FromHex, class ToHex, stripHexPrefix, toHex)
-import Partial.Unsafe (unsafePartial)
-import Test.QuickCheck (class Arbitrary)
-import Test.QuickCheck.Gen (chooseInt, elements, vectorOf)
 
 
 -- | int<M>: two’s complement signed integer type of M bits, 0 < M <= 256, M % 8 == 0
@@ -33,7 +30,7 @@ instance abiTypeSignedInt :: Dividend8 m => AbiType (SignedInt m) where
   -- padded on the higher-oder (left) side with 0xff for negative X
   -- and with zero bytes for positive X such that the length is a multiple of 32 bytes.
   enc si@(SignedInt m negative i) =
-    let encoded = stripHexPrefix (toHex si)
+    let encoded = (stripHexPrefix <<< toHex) si
         numNibbles = S.length encoded
         align n = let r = n `mod` 64 in if r == 0 then n else n + 64 - r
         nibblesToPad = align numNibbles - numNibbles
@@ -53,9 +50,9 @@ instance toHexSignedInt :: Dividend8 m => ToHex (SignedInt m) where
   toHex (SignedInt _ _ i) = toHex i
 
 instance fromHexSignedInt :: Dividend8 m => FromHex (SignedInt m) where
-  fromHex s = do
-    decoded <- note "Failed to decode a hexademical string as a signed int" $
-                  I.fromBase 16 (stripHexPrefix s)
+  fromHex q = do
+    decoded <- noteErrors "Failed to decode a hexademical string as a signed int" $
+                I.fromBase 16 (stripHexPrefix q)
     uncomplemented <- mkSignedInt undefined decoded
     pure $ complement uncomplemented
 
@@ -76,13 +73,13 @@ instance semiringSignedInt :: Dividend8 m => Semiring (SignedInt m) where
   add (SignedInt m false l) (SignedInt _ true r)  = SignedInt m false (l + r)
 
 -- | Signed n-bit integer: [−(2 `pow` n−1), (2 `pow` n−1))
-mkSignedInt :: ∀ m. Dividend8 m => m -> BigInt -> Either String (SignedInt m)
+mkSignedInt :: ∀ m. Dividend8 m => m -> BigInt -> Either Errors (SignedInt m)
 mkSignedInt m = withBounds (lowerBound m) (upperBound m) where
   withBounds l u i
-    | i < l = Left $ "SignedInt " <> show (toInt m) <> " can't hold a value "
-                                  <> I.toString i <> " < " <> I.toString l
-    | i > u = Left $ "SignedInt " <> show (toInt m) <> " can't hold a value "
-                                  <> I.toString i <> " >= " <> I.toString u
+    | i < l = Left <<< mkErrors $ "SignedInt " <> show (toInt m) <> " can't hold a value "
+                                <> I.toString i <> " < " <> I.toString l
+    | i > u = Left <<< mkErrors $ "SignedInt " <> show (toInt m) <> " can't hold a value "
+                                <> I.toString i <> " >= " <> I.toString u
     | i < zero = Right <<< complement <<< SignedInt m true $ i
     | otherwise = Right $ SignedInt m false i
 

@@ -8,24 +8,20 @@ import Prelude
 
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Bifunctor (lmap)
 import Data.ByteString as B
 import Data.Either (Either(..))
 import Data.Ethereum.Bytes (Bytes(..), sliceBytes)
+import Data.Ethereum.Error (type (-!>), clarify, mkErrors, squashErrors)
 import Data.Newtype (class Newtype, unwrap)
 import Ethereum.Hex (class FromHex, class ToHex, fromHex, toHex)
-
-type Error = String
-type Valid = Either Error
-
 -- | Ethereum signature used for signing / verification
 
 newtype Signature = Signature Bytes
 
-mkSignature :: Bytes -> Valid Signature
+mkSignature :: Bytes -!> Signature
 mkSignature (Bytes bs) =
   if (B.length bs /= 32)
-  then Left "Signature is expected to be exactly 256 bits"
+  then Left $ mkErrors "Signature is expected to be exactly 256 bits"
   else Right $ Signature (Bytes bs)
 
 rsv :: Signature -> { r :: Bytes, s :: Bytes, v :: Bytes }
@@ -49,8 +45,8 @@ instance toHexSignature :: ToHex Signature where
 
 instance decodeJsonSignature :: DecodeJson Signature where
   decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode HEX as Signature: ")
-               >>> map Signature
+    >=> fromHex >>> clarify "Failed to decode HEX as Signature: " >>> squashErrors
+    >>> map Signature
 
 instance encodeJsonSignature :: EncodeJson Signature where
   encodeJson = unwrap >>> encodeJson

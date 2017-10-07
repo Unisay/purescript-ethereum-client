@@ -7,18 +7,19 @@ import Control.Monad.Aff.Console (log)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE)
 import Data.Argonaut.Parser (jsonParser)
+import Data.Bifunctor (lmap)
 import Data.Either (Either, either)
+import Data.Ethereum.Error (Errors, mkErrors)
 import Ethereum as E
 import Network.HTTP.Affjax (AJAX)
 import Network.Rpc.Json (AffjaxLoggingTransport(..))
 
-type Error = String
 
 main :: ∀ e. Eff (console :: CONSOLE, ajax :: AJAX | e) Unit
-main = launchAff_ $ either log exec ethereumProgram
+main = launchAff_ $ either (show >>> log) exec ethereumProgram
   where exec = E.run $ AffjaxLoggingTransport "http://127.0.0.1:8545"
 
-ethereumProgram :: Either Error (E.Eth Unit) -- TODO: liftEth ?
+ethereumProgram :: Either Errors (E.Eth Unit) -- TODO: liftEth ?
 ethereumProgram = do
   account  <- makeAccountAddress
   endpoint <- makeEndpoint
@@ -27,15 +28,15 @@ ethereumProgram = do
 
   where
 
-  makeEndpoint :: Either Error E.Endpoint
+  makeEndpoint :: Either Errors E.Endpoint
   makeEndpoint = E.Endpoint <$> makeContractAddress
                             <*> makeContractAbi
 
   -- | Account must be unlocked in order to be able to sign messages
-  makeAccountAddress :: Either Error E.Address -- My account on Rinkeby
+  makeAccountAddress :: Either Errors E.Address -- My account on Rinkeby
   makeAccountAddress = E.fromHex "b1e9118a35062711e0129e918370a9b1d8e184c7"
 
-  makeContractAddress :: Either Error E.Address -- on Ropsten and Rinkeby
+  makeContractAddress :: Either Errors E.Address -- on Ropsten and Rinkeby
   makeContractAddress = E.fromHex "5481c0fe170641bd2e0ff7f04161871829c1902d"
 
   {- Contract Code:
@@ -50,8 +51,8 @@ ethereumProgram = do
         }
     }
   -}
-  makeContractAbi :: Either Error E.Abi
-  makeContractAbi = jsonParser abi <#> E.mkAbi where
+  makeContractAbi :: Either Errors E.Abi
+  makeContractAbi = (lmap mkErrors $ jsonParser abi ) <#> E.mkAbi where
     abi = """
     [{
         "name": "RecoverAddress",

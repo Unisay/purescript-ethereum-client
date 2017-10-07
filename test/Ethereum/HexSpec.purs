@@ -1,22 +1,20 @@
 module Ethereum.Hex.Spec where
 
 import Prelude
-import Data.BigInt as I
-import Data.ByteString as BS
-import Arbitrary (ArbAddress, ArbBigInt)
+
+import Arbitrary (ArbAddress, NonNegativeBigInt(NonNegativeBigInt))
 import Control.Monad.Eff.Random (RANDOM)
-import Data.Array (drop)
+import Data.BigInt as I
 import Data.ByteString (ByteString)
-import Data.Char.Unicode (isHexDigit)
+import Data.ByteString as BS
 import Data.Either (Either(Right))
 import Data.Ethereum (Address)
-import Data.Foldable (all)
-import Data.String (toCharArray)
-import Data.String.Utils (startsWith, unsafeRepeat)
+import Data.String.Utils (unsafeRepeat)
 import Data.Traversable (traverse)
-import Ethereum (class ToHex)
 import Ethereum.Hex (fromHex, toHex)
+import Property (isHexBytesEncoding, isHex)
 import Test.MkUnsafe (mkUnsafe)
+import Test.QuickCheck (Result(Success, Failed))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.Assert (equal)
 import Test.Unit.QuickCheck (quickCheck)
@@ -29,26 +27,18 @@ spec = do
         bigInt = I.fromInt 934069
     test "toHex ByteString" $
       "0x02cafebabe" `equal` toHex byteString
-    test "toHex ByteString has 0x prefix" $
-      quickCheck (propEncodingHas0xPrefix :: ByteString -> Boolean)
-    test "toHex ByteString has only hex digits" $
-      quickCheck (propHasOnlyHexDigits :: ByteString -> Boolean)
-
+    test "toHex ByteString produces a correct hex encoding" $
+      quickCheck ((toHex >>> isHexBytesEncoding) :: ByteString -> Result)
     test "toHex BigInt" $
       "0xe40b5" `equal` toHex bigInt
-    test "toHex BigInt has 0x prefix" $
-      quickCheck (propEncodingHas0xPrefix :: ArbBigInt -> Boolean)
-    test "toHex BigInt has only hex digits" $
-      quickCheck (propHasOnlyHexDigits :: ArbBigInt -> Boolean)
-
+    test "toHex BigInt produces a correct hexadecimal quantity encoding" $
+      quickCheck propNonNegativeBigIntHexEncoding
     test "toHex Address" do
       let addressStr = unsafeRepeat 20 "20"
           address = mkUnsafe addressStr :: Address
       ("0x" <> addressStr) `equal` toHex address
-    test "toHex Address has 0x prefix" $
-      quickCheck (propEncodingHas0xPrefix :: ArbAddress -> Boolean)
-    test "toHex Address has only hex digits" $
-      quickCheck (propHasOnlyHexDigits :: ArbAddress -> Boolean)
+    test "toHex Address produces a correct hex encoding" $
+      quickCheck ((toHex >>> isHexBytesEncoding) :: ArbAddress -> Result)
 
   suite "From Hex" do
     test "fromHex ByteString" do
@@ -62,9 +52,10 @@ spec = do
       expected `equal` traverse fromHex ["0x400", "0x0400", "0x0", "0xe40b5"]
 
 
+propNonNegativeBigIntHexEncoding :: NonNegativeBigInt -> Result
+propNonNegativeBigIntHexEncoding (NonNegativeBigInt bi) =
+  clarify ("propNonNegativeBigIntHexEncoding (" <> (I.toString bi) <> "): ") $ isHex $ toHex bi
 
-propHasOnlyHexDigits :: ∀ a. ToHex a => a -> Boolean
-propHasOnlyHexDigits = toHex >>> toCharArray >>> drop 2 >>> all isHexDigit
-
-propEncodingHas0xPrefix :: ∀ a. ToHex a => a -> Boolean
-propEncodingHas0xPrefix = toHex >>> startsWith "0x"
+clarify :: String -> Result -> Result
+clarify s (Failed e) = Failed $ s <> e
+clarify _ Success = Success

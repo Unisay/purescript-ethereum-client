@@ -5,18 +5,27 @@ import Prelude
 import Control.Monad.Eff.Exception.Unsafe (unsafeThrow)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Parser (jsonParser)
+import Data.BaseChar (OctChar)
+import Data.Bifunctor (lmap)
+import Data.BigInt (BigInt)
 import Data.BigInt as I
 import Data.ByteString (ByteString, Encoding(..))
 import Data.ByteString as B
 import Data.Either (Either, either)
 import Data.Ethereum as E
-import Data.Ethereum.Contract (Code(..))
 import Data.Ethereum.Bytes (Bytes(..))
-import Data.Maybe (Maybe(Nothing, Just))
+import Data.Ethereum.Contract (Code(..))
+import Data.Ethereum.Error (Errors, mkErrors, noteErrors)
+import Data.Maybe (Maybe)
+import Data.Newtype (unwrap)
+import Data.String (fromCharArray)
 
 
 class MkUnsafe i o | o -> i where
   mkUnsafe :: i -> o
+
+instance mkUnsafeBigInt :: MkUnsafe (Array OctChar) BigInt where
+  mkUnsafe = map unwrap >>> fromCharArray >>> I.fromBase 8 >>> unsafeJust
 
 instance mkUnsafeByteString :: MkUnsafe String ByteString where
   mkUnsafe s = unsafeJust (B.fromString s Hex)
@@ -36,7 +45,7 @@ instance mkUnsafeAddress :: MkUnsafe String E.Address where
 instance mkUnsafeSignature :: MkUnsafe String E.Signature where
   mkUnsafe = mkUnsafe >>> E.mkSignature >>> unsafeRight
 
-instance mkUnsafeQuantity :: MkUnsafe Int E.Quantity where
+instance mkUnsafeQuantity :: MkUnsafe BigInt E.Quantity where
   mkUnsafe = E.mkQuantity >>> unsafeRight
 
 instance mkUnsafeCode :: MkUnsafe String Code where
@@ -46,14 +55,13 @@ instance mkUnsafeTxHash :: MkUnsafe String E.TxHash where
   mkUnsafe = mkUnsafe >>> E.mkTxHash >>> unsafeRight
 
 instance mkUnsafeJson :: MkUnsafe String Json where
-  mkUnsafe = jsonParser >>> unsafeRight
+  mkUnsafe = jsonParser >>> lmap mkErrors >>> unsafeRight
 
-unsafeRight :: ∀ a. Either String a -> a
+unsafeRight :: ∀ a. Either Errors a -> a
 unsafeRight = either handleUnsafeErr id
 
 unsafeJust :: ∀ a. Maybe a -> a
-unsafeJust (Just a) = a
-unsafeJust Nothing = handleUnsafeErr "Maybe is Nothing"
+unsafeJust = noteErrors "Maybe is Nothing" >>> unsafeRight
 
-handleUnsafeErr :: ∀ a. String -> a
-handleUnsafeErr = append "Unsafe construction: " >>> unsafeThrow
+handleUnsafeErr :: ∀ a. Errors -> a
+handleUnsafeErr = show >>> append "Unsafe construction: " >>> unsafeThrow

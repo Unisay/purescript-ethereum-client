@@ -8,8 +8,8 @@ import Prelude
 
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Bifunctor (lmap)
 import Data.ByteString as B
+import Data.Ethereum.Error (clarify, squashErrors)
 import Data.Newtype (class Newtype, unwrap)
 import Ethereum.Hex (class FromHex, class ToHex, fromHex, toHex)
 import Node.Buffer.Unsafe (slice)
@@ -39,8 +39,8 @@ instance fromHexBytes :: FromHex Bytes where
 
 instance decodeJsonBytes :: DecodeJson Bytes where
   decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode Bytes: ")
-               >>> map Bytes
+    >=> fromHex >>> clarify "Failed to decode Bytes: " >>> squashErrors
+    >>> map Bytes
 
 instance encodeJsonBytes :: EncodeJson Bytes where
   encodeJson = unwrap >>> toHex >>> encodeJson

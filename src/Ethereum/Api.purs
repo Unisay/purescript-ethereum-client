@@ -39,9 +39,11 @@ import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (encodeJson)
 import Data.ByteString as B
 import Data.Either (Either(Right, Left), either)
+import Data.Ethereum (Quantity)
+import Data.Ethereum as E
+import Data.Ethereum.Error (squashErrors)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
-import Data.Ethereum as E
 import Ethereum.Hex (fromHex, toHex)
 import Network.Rpc.Json as Rpc
 
@@ -63,7 +65,7 @@ data EthF more =
   | EthAccounts (Decoder (Array E.Address)) (Array E.Address -> more)
   | EthBlockNumber (Decoder E.BlockNumber) (E.BlockNumber -> more)
   | EthGetBalance E.Address DefaultBlock (Decoder E.Wei) (E.Wei -> more)
-  | EthGetStorageAt E.Address Int DefaultBlock (Decoder E.Bytes) (E.Bytes -> more)
+  | EthGetStorageAt E.Address Quantity DefaultBlock (Decoder E.Bytes) (E.Bytes -> more)
   | EthGetTxCount E.Address DefaultBlock (Decoder (Maybe E.Quantity)) ((Maybe E.Quantity) -> more)
   | EthGetBlockTxCountByHash E.BlockHash (Decoder (Maybe E.Quantity)) (Maybe E.Quantity -> more)
   | EthGetBlockTxCountByNumber DefaultBlock (Decoder (Maybe E.Quantity)) (Maybe E.Quantity -> more)
@@ -136,39 +138,37 @@ ethGetBalance address defBlock =
   liftF $ EthGetBalance address defBlock decodeJson id
 
 -- | Value from a storage position at a given address
-ethGetStorageAt :: E.Address -> Int -> DefaultBlock -> Eth E.Bytes
+ethGetStorageAt :: E.Address -> Quantity -> DefaultBlock -> Eth E.Bytes
 ethGetStorageAt address pos defBlock =
   liftF $ EthGetStorageAt address pos defBlock decodeJson id
 
 -- | Number of transactions sent from an address
 ethGetTransactionCount :: E.Address -> DefaultBlock -> Eth (Maybe E.Quantity)
 ethGetTransactionCount address defBlock =
-  liftF $ EthGetTxCount address defBlock decoder id
-  where decoder = decodeJson >=> traverse fromHex
+  liftF $ EthGetTxCount address defBlock maybeQuantity id
 
 -- | Number of transactions in a block from a block matching the given block hash
 ethGetBlockTransactionCountByHash :: E.BlockHash -> Eth (Maybe E.Quantity)
 ethGetBlockTransactionCountByHash block =
-  liftF $ EthGetBlockTxCountByHash block decoder id
-  where decoder = decodeJson >=> traverse fromHex
+  liftF $ EthGetBlockTxCountByHash block maybeQuantity id
 
 -- | Number of transactions in a block from a block matching the given block number
 ethGetBlockTransactionCountByNumber :: DefaultBlock -> Eth (Maybe E.Quantity)
 ethGetBlockTransactionCountByNumber block =
-  liftF $ EthGetBlockTxCountByNumber block decoder id
-  where decoder = decodeJson >=> traverse fromHex
+  liftF $ EthGetBlockTxCountByNumber block maybeQuantity id
 
 -- | Number of uncles in a block from a block matching the given block hash
 ethGetUncleCountByBlockHash :: E.BlockHash -> Eth (Maybe E.Quantity)
 ethGetUncleCountByBlockHash blockHash =
-  liftF $ EthGetUncleCountByBlockHash blockHash decoder id
-  where decoder = decodeJson >=> traverse fromHex
+  liftF $ EthGetUncleCountByBlockHash blockHash maybeQuantity id
 
 -- | Number of uncles in a block from a block matching the given block number
 ethGetUncleCountByBlockNumber :: DefaultBlock -> Eth (Maybe E.Quantity)
 ethGetUncleCountByBlockNumber defBlock =
-  liftF $ EthGetUncleCountByBlockNumber defBlock decoder id
-  where decoder = decodeJson >=> traverse fromHex
+  liftF $ EthGetUncleCountByBlockNumber defBlock maybeQuantity id
+
+maybeQuantity :: Json -> Either String (Maybe E.Quantity)
+maybeQuantity = decodeJson >=> traverse (fromHex >>> squashErrors)
 
 -- | Code at a given address
 ethGetCode :: E.Address -> DefaultBlock -> Eth E.Code
@@ -192,7 +192,7 @@ decodeTxHash json = do
   s <- decodeJson json
   if (s == "0x0")
     then pure Nothing
-    else Just <$> fromHex s
+    else Just <$> (fromHex >>> squashErrors) s
 
 -- | Create a new message call transaction or a contract for signed transactions
 ethSendRawTransaction :: E.Bytes -> Eth (Maybe E.TxHash)

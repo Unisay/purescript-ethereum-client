@@ -6,15 +6,16 @@ import Arbitrary (ArbAddress, ArbQuantity, ArbTxHash)
 import Control.Monad.Eff.Random (RANDOM)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
+import Data.BigInt (fromInt)
 import Data.Either (Either(..), either)
 import Data.Ethereum (Transaction(Transaction))
 import Data.Maybe (Maybe(..))
 import Data.String.Utils (unsafeRepeat)
+import Test.MkUnsafe (mkUnsafe)
 import Test.QuickCheck (Result(..), assertEquals)
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.Assert (equal)
 import Test.Unit.QuickCheck (quickCheck)
-import Test.MkUnsafe (mkUnsafe)
 
 spec :: ∀ e. TestSuite (random :: RANDOM | e)
 spec = suite "Json" do
@@ -22,11 +23,11 @@ spec = suite "Json" do
       address2 = mkUnsafe $ unsafeRepeat 20 "22"
       transaction = Transaction { from: address1
                                 , to: Just address2
-                                , gas: Just $ mkUnsafe 2
-                                , gasPrice: Just $ mkUnsafe 3
-                                , value: Just $ mkUnsafe 4
+                                , gas: Just $ mkUnsafe $ fromInt 2
+                                , gasPrice: Just $ mkUnsafe $ fromInt 3
+                                , value: Just $ mkUnsafe $ fromInt 4
                                 , data: Left $ mkUnsafe "05"
-                                , nonce: Just $ mkUnsafe 6
+                                , nonce: Just $ mkUnsafe $ fromInt 6
                               }
   test "encode transaction" do
     let expected = mkUnsafe """

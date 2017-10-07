@@ -7,25 +7,22 @@ import Prelude
 
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Bifunctor (lmap)
 import Data.ByteString as B
 import Data.Either (Either(..))
 import Data.Ethereum.Bytes (Bytes(..))
+import Data.Ethereum.Error (type (-!>), clarify, mkErrors, squashErrors)
 import Data.Newtype (class Newtype, unwrap)
 import Ethereum.Hex (class FromHex, class ToHex, fromHex, toHex)
 
-
-type Error = String
-type Valid = Either Error
 
 -- | Ethereum address (20 bytes)
 
 newtype Address = Address Bytes
 
-mkAddress :: Bytes -> Valid Address
+mkAddress :: Bytes -!> Address
 mkAddress (Bytes bs) =
   if (B.length bs /= 20)
-  then Left "Address is expected to be exactly 20 bytes"
+  then Left $ mkErrors "Address is expected to be exactly 20 bytes"
   else Right $ Address (Bytes bs)
 
 derive instance newtypeAddress :: Newtype Address _
@@ -43,8 +40,8 @@ instance toHexAddress :: ToHex Address where
 
 instance decodeAddress :: DecodeJson Address where
   decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode Address: ")
-               >=> mkAddress
+    >=> fromHex >>> clarify  "Failed to decode Address: " >>> squashErrors
+    >=> mkAddress >>> squashErrors
 
 instance encodeAddress :: EncodeJson Address where
   encodeJson = unwrap >>> encodeJson

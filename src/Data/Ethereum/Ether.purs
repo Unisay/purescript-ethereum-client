@@ -3,11 +3,12 @@ module Data.Ethereum.Ether
   ) where
 
 import Prelude
-import Data.Newtype (class Newtype, unwrap)
+
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Bifunctor (lmap)
 import Data.BigInt as I
+import Data.Ethereum.Error (clarify, squashErrors)
+import Data.Newtype (class Newtype, unwrap)
 import Ethereum.Hex (class FromHex, class ToHex, fromHex, toHex)
 
 
@@ -25,7 +26,7 @@ instance showWei :: Show Wei where
 instance fromHex :: FromHex Wei where
   fromHex = fromHex >>> map Wei
 
-instance toHex :: ToHex Wei where
+instance toHexWei :: ToHex Wei where
   toHex = unwrap >>> toHex
 
 instance encodeJsonWei :: EncodeJson Wei where
@@ -33,5 +34,5 @@ instance encodeJsonWei :: EncodeJson Wei where
 
 instance decodeJsonWei :: DecodeJson Wei where
   decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode Wei: ")
-               >>> map Wei
+    >=> fromHex >>> clarify "Failed to decode Wei: " >>> squashErrors
+    >>> map Wei

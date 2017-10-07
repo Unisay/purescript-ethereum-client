@@ -6,27 +6,24 @@ module Data.Ethereum.Hash
   ) where
 
 import Prelude
+
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Bifunctor (lmap)
 import Data.ByteString as B
 import Data.Either (Either(..))
 import Data.Ethereum.Bytes (Bytes(Bytes))
+import Data.Ethereum.Error (type (-!>), clarify, mkErrors, squashErrors)
 import Data.Newtype (class Newtype, unwrap)
 import Ethereum.Hex (class FromHex, class ToHex, fromHex, toHex)
-
-
-type Error = String
-type Valid = Either Error
 
 -- | Keccak-256 hash
 
 newtype Keccak256 = Keccak256 Bytes
 
-mkKeccak256 :: Bytes -> Valid Keccak256
+mkKeccak256 :: Bytes -!> Keccak256
 mkKeccak256 (Bytes bs) =
   if (B.length bs /= 32)
-  then Left "Keccak-256 hash is expected to be exactly 256 bits"
+  then Left $ mkErrors "Keccak-256 hash is expected to be exactly 256 bits"
   else Right $ Keccak256 (Bytes bs)
 
 derive instance newtypeKeccak256 :: Newtype Keccak256 _
@@ -44,8 +41,8 @@ instance toHexKeccak256 :: ToHex Keccak256 where
 
 instance decodeJsonKeccak256 :: DecodeJson Keccak256 where
   decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode Keccak-256 hash: ")
-               >=> mkKeccak256
+    >=> fromHex >>> clarify "Failed to decode Keccak-256 hash: " >>> squashErrors
+    >=> mkKeccak256 >>> squashErrors
 
 instance encodeJsonKeccak256 :: EncodeJson Keccak256 where
   encodeJson = unwrap >>> encodeJson
@@ -56,12 +53,11 @@ instance encodeJsonKeccak256 :: EncodeJson Keccak256 where
 
 newtype TxHash = TxHash Bytes
 
-mkTxHash :: Bytes -> Valid TxHash
+mkTxHash :: Bytes -!> TxHash
 mkTxHash (Bytes bs) =
   if (B.length bs /= 32)
-  then Left $ "Transaction hash is expected to be exactly 32 bytes "
-           <> "but it is "
-           <> show (B.length bs)
+  then Left $ mkErrors $ "Transaction hash is expected to be exactly 32 bytes "
+             <> "but it is " <> show (B.length bs)
   else Right $ TxHash (Bytes bs)
 
 derive instance newtypeTxHash :: Newtype TxHash _
@@ -79,8 +75,8 @@ instance toHexTxHash :: ToHex TxHash where
 
 instance decodeJsonTxHash :: DecodeJson TxHash where
   decodeJson = decodeJson
-               >=> fromHex >>> lmap (append "Failed to decode transaction hash: ")
-               >=> mkTxHash
+    >=> fromHex >>> clarify "Failed to decode transaction hash: " >>> squashErrors
+    >=> mkTxHash >>> squashErrors
 
 instance encodeJsonTxHash :: EncodeJson TxHash where
   encodeJson = toHex >>> encodeJson

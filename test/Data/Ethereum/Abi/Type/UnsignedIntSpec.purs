@@ -4,13 +4,11 @@ import Prelude
 
 import Control.Monad.Eff.Random (RANDOM)
 import Data.BigInt (BigInt, fromInt)
-import Data.Either (either, isLeft, isRight)
-import Data.Ethereum.Abi.Class (class AbiType, enc)
+import Data.Either (isLeft, isRight)
 import Data.Ethereum.Abi.Type (UnsignedInt, mkUnsignedInt)
-import Data.String as S
+import Data.Ethereum.Abi.Type.Property (propDecodableEnc, propTypeEncMultiple32b)
 import Data.Typelevel.Num (D8, D16, d16, d8)
-import Ethereum.Hex (class FromHex, fromHex)
-import Test.QuickCheck (class Arbitrary, Result(..), arbitrary, (<?>))
+import Test.QuickCheck (class Arbitrary, Result, arbitrary)
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)
 
@@ -48,14 +46,3 @@ propDecodableEnc8 = propDecodableEnc
 
 propDecodableEnc16 :: UnsignedInt D16 -> Result
 propDecodableEnc16 = propDecodableEnc
-
-propTypeEncMultiple32b :: ∀ a. AbiType a => Show a => a -> Result
-propTypeEncMultiple32b t =
-  let digits = S.length (enc t) - 2
-      res = digits `mod` 2 == 0 && digits `mod` 64 == 0
-  in res <?> ("propTypeEncMultiple32b did not hold for " <> show t)
-
-propDecodableEnc :: ∀ a. AbiType a => Eq a => Show a => FromHex a => a -> Result
-propDecodableEnc unsigned = either Failed (const Success) do
-  decoded <- fromHex $ enc unsigned
-  pure $ decoded == unsigned
