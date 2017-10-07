@@ -3,22 +3,25 @@ module Ethereum.Hex
   , class FromHex
   , fromHex
   , toHex
+  , stripHexPrefix
   ) where
 
 import Prelude
-
 import Data.BigInt as BI
-import Data.ByteString (Encoding(..))
 import Data.ByteString as BS
+import Data.ByteString (Encoding(..))
 import Data.Either (Either, note)
 import Data.Int (fromNumber, odd)
 import Data.Maybe (fromMaybe)
-import Data.String (Pattern(..), length, stripPrefix)
+import Data.String (Pattern(..), dropWhile, length, stripPrefix)
 
 -- | https://github.com/ethereum/wiki/wiki/JSON-RPC#hex-value-encoding
 
 class ToHex a where
   toHex :: a -> String
+
+stripHexPrefix :: String -> String
+stripHexPrefix s = fromMaybe s $ stripPrefix (Pattern "0x") s
 
 {-
   When encoding UNFORMATTED DATA (byte arrays, account addresses, hashes, bytecode arrays):
@@ -46,7 +49,7 @@ instance byteStringToHex :: ToHex BS.ByteString where
 -}
 instance bigIntToHex :: ToHex BI.BigInt where
   toHex bi = "0x" <> quantitified where
-    quantitified = fromMaybe hex $ stripPrefix (Pattern "0") hex
+    quantitified = dropWhile (\c -> c == '0' || c == '-') hex
     hex = BI.toBase 16 bi
 
 instance intToHex :: ToHex Int where
@@ -56,12 +59,12 @@ class FromHex a where
   fromHex :: String -> Either String a
 
 instance fromHexByteString :: FromHex BS.ByteString where
-  fromHex s = let noPrefix = fromMaybe s $ stripPrefix (Pattern "0x") s
+  fromHex s = let noPrefix = stripHexPrefix s
                   padded = if odd $ length noPrefix then "0" <> noPrefix else noPrefix
               in note "Failed to read HEX as ByteString" $ BS.fromString padded Hex
 
 instance fromHexBigInt :: FromHex BI.BigInt where
-  fromHex s = let noPrefix = fromMaybe s $ stripPrefix (Pattern "0x") s
+  fromHex s = let noPrefix = stripHexPrefix s
               in note "Failed to read HEX as BigInt" $ BI.fromBase 16 noPrefix
 
 instance fromHexInt :: FromHex Int where
