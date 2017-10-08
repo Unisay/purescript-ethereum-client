@@ -9,11 +9,11 @@ import Data.Either (isLeft, isRight)
 import Data.Ethereum.Abi.Class (enc)
 import Data.Ethereum.Abi.Type.Class (class Dividend8)
 import Data.Ethereum.Abi.Type.Property (propDecodableEnc, propTypeEncMultiple32b)
-import Data.Ethereum.Abi.Type.SignedInt (SignedInt, invert, isNegative, mkSignedInt)
+import Data.Ethereum.Abi.Type.SignedInt (SignedInt, complement, invert, isNegative, mkSignedInt)
 import Data.Newtype (unwrap)
 import Data.Typelevel.Num (d16, d8)
 import Property (isHex, (<&&>))
-import Test.QuickCheck (class Arbitrary, Result, arbitrary, (<?>), (===))
+import Test.QuickCheck (class Arbitrary, Result, arbitrary, (/==), (<?>), (===))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)
 
@@ -28,6 +28,10 @@ spec = do
       quickCheck ((unwrap >>> propInvert) :: ArbSignedInt8 -> Result)
     test "invert SignedInt 64" $
       quickCheck ((unwrap >>> propInvert) :: ArbSignedInt64 -> Result)
+    test "complement SignedInt 8" $
+      quickCheck ((unwrap >>> propComplement) :: ArbSignedInt8 -> Result)
+    test "complement SignedInt 64" $
+      quickCheck ((unwrap >>> propComplement) :: ArbSignedInt64 -> Result)
     test "enc SignedInt 8 produces a correct hex encoding" $
       quickCheck ((unwrap >>> enc >>> isHex) :: ArbSignedInt8 -> Result)
     test "enc SignedInt 64 produces a correct hex encoding" $
@@ -61,8 +65,16 @@ propSignedInt16 (ArbBigInt i) =
      else isLeft v
 
 propInvert :: ∀ a. Dividend8 a => SignedInt a -> Result
-propInvert signed =
-  let inverted = invert signed
-      signConsistency = (isNegative signed == isNegative inverted) <?> "inverted SignedInt changed sign"
-      doubleInversion = signed === invert inverted
+propInvert original =
+  let inverted = invert original
+      signConsistency = (isNegative original == isNegative inverted) <?> "inverted SignedInt changed sign"
+      doubleInversion = original === invert inverted
   in signConsistency <&&> doubleInversion
+
+propComplement :: ∀ a. Dividend8 a => SignedInt a -> Result
+propComplement original =
+  let complemented = complement original
+      sum = original + complemented
+      propSum = zero == sum <?> "The sum of a number and its two's complement isn't equal 0"
+      equality = complemented /== original
+  in propSum <&&> equality
