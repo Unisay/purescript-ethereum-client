@@ -50,3 +50,8 @@ and :: ∀ a. (a -> Result) -> (a -> Result) -> a -> Result
 and f g = (f >>> Results <> g >>> Results) >>> unwrap
 
 infix 2 and as <&>
+
+and' :: ∀ a. Result -> Result -> Result
+and' l r = unwrap (Results l <> Results r)
+
+infix 2 and' as <&&>

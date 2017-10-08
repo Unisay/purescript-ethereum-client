@@ -12,8 +12,8 @@ import Data.Ethereum.Abi.Type.Property (propDecodableEnc, propTypeEncMultiple32b
 import Data.Ethereum.Abi.Type.SignedInt (SignedInt, invert, isNegative, mkSignedInt)
 import Data.Newtype (unwrap)
 import Data.Typelevel.Num (d16, d8)
-import Property (isHex)
-import Test.QuickCheck (class Arbitrary, Result, arbitrary, (<?>))
+import Property (isHex, (<&&>))
+import Test.QuickCheck (class Arbitrary, Result, arbitrary, (<?>), (===))
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)
 
@@ -63,4 +63,6 @@ propSignedInt16 (ArbBigInt i) =
 propInvert :: ∀ a. Dividend8 a => SignedInt a -> Result
 propInvert signed =
   let inverted = invert signed
-  in (isNegative signed == isNegative inverted) <?> "inverted SignedInt changed sign"
+      signConsistency = (isNegative signed == isNegative inverted) <?> "inverted SignedInt changed sign"
+      doubleInversion = signed === invert inverted
+  in signConsistency <&&> doubleInversion
