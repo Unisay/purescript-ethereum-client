@@ -10,11 +10,10 @@ module Data.Ethereum.Error
   ) where
 
 import Prelude
-
 import Data.Bifunctor (lmap)
 import Data.Either (Either, note)
-import Data.List.NonEmpty (singleton)
-import Data.List.Types (NonEmptyList)
+import Data.Foldable (length)
+import Data.List.NonEmpty (NonEmptyList, head, singleton, toList)
 import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
 
@@ -25,14 +24,16 @@ infix 6 type Erroneous as -!>
 newtype Error = Error String
 derive instance newtypeError :: Newtype Error _
 derive newtype instance eqError :: Eq Error
-derive newtype instance showError :: Show Error
 derive newtype instance semigroupError :: Semigroup Error
+instance showError :: Show Error where show = unwrap
 
 newtype Errors = Errors (NonEmptyList Error)
 derive instance newtypeErrors :: Newtype Errors _
 derive newtype instance eqErrors :: Eq Errors
-derive newtype instance showErrors :: Show Errors
 derive newtype instance semigroupErrors :: Semigroup Errors
+instance showErrors :: Show Errors where
+  show (Errors l) | ((length l) :: Int) == one = show $ head (l :: NonEmptyList Error)
+  show errors = show $ toList $ unwrap errors
 
 mkErrors :: String -> Errors
 mkErrors = Error >>> singleton >>> Errors

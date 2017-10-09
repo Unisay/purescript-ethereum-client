@@ -1,18 +1,18 @@
 module Arbitrary where
 
 import Prelude
-
+import Data.BigInt as I
+import Data.ByteString as B
 import Control.Monad.Gen (chooseInt)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.BaseChar (OctChar)
 import Data.BigInt (BigInt)
-import Data.BigInt as I
 import Data.ByteString (Encoding(..), Octet)
-import Data.ByteString as B
 import Data.Ethereum (Abi(..), Address, Bytes(..), Code(..), Quantity, TxHash)
 import Data.Ethereum.Abi.Type.SignedInt (SignedInt, mkSignedInt)
 import Data.Newtype (class Newtype, unwrap)
+import Data.Tuple (Tuple(..))
 import Data.Typelevel.Num (D8, d64, d8)
 import Data.Typelevel.Num.Aliases (D64)
 import Ethereum.Hex (class ToHex, class FromHex)
@@ -104,15 +104,30 @@ instance arbitraryArbQuantity :: Arbitrary ArbQuantity where
 newtype ArbSignedInt8 = ArbSignedInt8 (SignedInt D8)
 derive newtype instance showArbSignedInt8 :: Show ArbSignedInt8
 derive instance newtypeSignedInt8 :: Newtype ArbSignedInt8 _
-instance mkUnsafeSignedInt8 :: MkUnsafe (Array OctChar) ArbSignedInt8 where
-  mkUnsafe = mkUnsafe >>> I.abs >>> mkSignedInt d8 >>> unsafeRight >>> ArbSignedInt8
+derive newtype instance ringArbSignedInt8 :: Ring ArbSignedInt8
+instance mkUnsafeSignedInt8 :: MkUnsafe (Tuple Boolean (Array OctChar)) ArbSignedInt8 where
+  mkUnsafe (Tuple isNegative chars) =
+    let mkIt = mkUnsafe >>> I.abs >>> mkSignedInt d8 >>> unsafeRight >>> ArbSignedInt8
+        si = mkIt chars
+    in if isNegative then negate si else si
+
 instance arbitrarySignedInt8 :: Arbitrary ArbSignedInt8 where
-  arbitrary = vectorOf 1 (arbitrary :: Gen OctChar) <#> mkUnsafe
+  arbitrary = do
+    chrs <- vectorOf 1 (arbitrary :: Gen OctChar)
+    sign <- arbitrary
+    pure $ mkUnsafe $ Tuple sign chrs
 
 newtype ArbSignedInt64 = ArbSignedInt64 (SignedInt D64)
 derive newtype instance showArbSignedInt64 :: Show ArbSignedInt64
 derive instance newtypeSignedInt64 :: Newtype ArbSignedInt64 _
-instance mkUnsafeSignedInt64 :: MkUnsafe (Array OctChar) ArbSignedInt64 where
-  mkUnsafe = mkUnsafe >>> I.abs >>> mkSignedInt d64 >>> unsafeRight >>> ArbSignedInt64
+derive newtype instance ringArbSignedInt64 :: Ring ArbSignedInt64
+instance mkUnsafeSignedInt64 :: MkUnsafe (Tuple Boolean (Array OctChar)) ArbSignedInt64 where
+  mkUnsafe (Tuple isNegative chars) =
+    let mkIt = mkUnsafe >>> I.abs >>> mkSignedInt d64 >>> unsafeRight >>> ArbSignedInt64
+        si = mkIt chars
+    in if isNegative then negate si else si
 instance arbitrarySignedInt64 :: Arbitrary ArbSignedInt64 where
-  arbitrary = vectorOf 8 (arbitrary :: Gen OctChar) <#> mkUnsafe
+  arbitrary = do
+    chrs <- vectorOf 8 (arbitrary :: Gen OctChar)
+    sign <- arbitrary
+    pure $ mkUnsafe $ Tuple sign chrs

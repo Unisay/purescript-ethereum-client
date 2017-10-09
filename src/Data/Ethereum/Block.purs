@@ -17,7 +17,7 @@ import Data.Either (Either(..))
 import Data.Ethereum.Bytes (Bytes(..))
 import Data.Ethereum.Error (type (-!>), clarify, mkErrors, squashErrors)
 import Data.Newtype (class Newtype, unwrap)
-import Ethereum.Hex (class FromHex, class ToHex, fromHex, toHex, toHex)
+import Ethereum.Hex (class FromHex, class ToHex, fromHex, toHex)
 
 -- | Ethereum block number
 

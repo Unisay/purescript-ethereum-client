@@ -4,19 +4,21 @@ module Data.Ethereum.Abi.Type.SignedInt
   , invert
   , complement
   , isNegative
+  , toBigInt
+  , lowerBound
+  , upperBound
   ) where
 
 import Prelude
-
 import Data.Array as A
-import Data.BigInt (BigInt, xor)
 import Data.BigInt as I
+import Data.String as S
+import Data.BigInt (BigInt, xor)
 import Data.Either (Either(Right, Left))
 import Data.Ethereum.Abi.Class (class AbiType)
 import Data.Ethereum.Abi.Type.Class (class Dividend8)
 import Data.Ethereum.Error (Errors, mkErrors, noteErrors)
 import Data.String (joinWith)
-import Data.String as S
 import Data.Typelevel.Num (class Nat, toInt)
 import Data.Typelevel.Undefined (undefined)
 import Ethereum.Hex (class FromHex, class ToHex, stripHexPrefix, toHex)
@@ -24,6 +26,15 @@ import Ethereum.Hex (class FromHex, class ToHex, stripHexPrefix, toHex)
 
 -- | int<M>: two’s complement signed integer type of M bits, 0 < M <= 256, M % 8 == 0
 data SignedInt m = SignedInt m Boolean BigInt
+
+-- | unsafe because of possible overflow
+unsafeFromBigInt :: ∀ m. Dividend8 m => m -> BigInt -> SignedInt m
+unsafeFromBigInt m i = if i < zero then SignedInt m true (I.abs i)
+                                   else SignedInt m false i
+
+toBigInt :: ∀ m. Dividend8 m => SignedInt m -> BigInt
+toBigInt (SignedInt _ negative value) =
+  if negative then negate value else value
 
 instance abiTypeSignedInt :: Dividend8 m => AbiType (SignedInt m) where
   -- int<M>: enc(X) is the big-endian two’s complement encoding of X,
@@ -59,18 +70,11 @@ instance fromHexSignedInt :: Dividend8 m => FromHex (SignedInt m) where
 instance semiringSignedInt :: Dividend8 m => Semiring (SignedInt m) where
   zero = SignedInt undefined false zero
   one = SignedInt undefined false one
+  mul l r = unsafeFromBigInt undefined (toBigInt l * toBigInt r)
+  add l r = unsafeFromBigInt undefined (toBigInt l + toBigInt r)
 
-  -- TODO: Fix operations!
-
-  mul (SignedInt m false l) (SignedInt _ false r) = SignedInt m false (l * r)
-  mul (SignedInt m true l)  (SignedInt _ true r)  = SignedInt m false (l * r)
-  mul (SignedInt m true l)  (SignedInt _ false r) = SignedInt m false (l * r)
-  mul (SignedInt m false l) (SignedInt _ true r)  = SignedInt m false (l * r)
-
-  add (SignedInt m false l) (SignedInt _ false r) = SignedInt m false (l + r)
-  add (SignedInt m true l)  (SignedInt _  true r) = SignedInt m false (l + r)
-  add (SignedInt m true l)  (SignedInt _ false r) = SignedInt m false (l + r)
-  add (SignedInt m false l) (SignedInt _ true r)  = SignedInt m false (l + r)
+instance ringSignedInt :: Dividend8 m => Ring (SignedInt m) where
+  sub l r = unsafeFromBigInt undefined (toBigInt l - toBigInt r)
 
 -- | Signed n-bit integer: [−(2 `pow` n−1), (2 `pow` n−1))
 mkSignedInt :: ∀ m. Dividend8 m => m -> BigInt -> Either Errors (SignedInt m)
@@ -93,11 +97,7 @@ isNegative :: ∀ a. Dividend8 a => SignedInt a -> Boolean
 isNegative (SignedInt _ negative _) = negative
 
 invert :: ∀ a. Dividend8 a => SignedInt a -> SignedInt a
-invert (SignedInt m b i) =
-  let two = I.fromInt 2
-      maxBits = I.fromInt (toInt m)
-      inverted = xor i (I.pow two maxBits)
-  in SignedInt m b inverted
+invert = toBigInt >>> I.not >>> unsafeFromBigInt undefined
 
 complement :: ∀ a. Dividend8 a => SignedInt a -> SignedInt a
 complement = invert >>> add one
