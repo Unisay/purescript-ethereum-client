@@ -1,22 +1,26 @@
 module Arbitrary where
 
 import Prelude
-import Data.BigInt as I
-import Data.ByteString as B
+
 import Control.Monad.Gen (chooseInt)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.BaseChar (OctChar)
 import Data.BigInt (BigInt)
+import Data.BigInt as I
+import Data.Binary (tryFromInt)
+import Data.Binary.SignedInt (SignedInt)
+import Data.Binary.SignedInt as SI
+import Data.Binary.UnsignedInt (UnsignedInt)
+import Data.Binary.UnsignedInt as UI
 import Data.ByteString (Encoding(..), Octet)
+import Data.ByteString as B
 import Data.Ethereum (Abi(..), Address, Bytes(..), Code(..), Quantity, TxHash)
-import Data.Ethereum.Abi.Type.SignedInt (SignedInt, mkSignedInt)
 import Data.Newtype (class Newtype, unwrap)
-import Data.Tuple (Tuple(..))
-import Data.Typelevel.Num (D8, d64, d8)
+import Data.Typelevel.Num (D8, d64)
 import Data.Typelevel.Num.Aliases (D64)
 import Ethereum.Hex (class ToHex, class FromHex)
-import Test.MkUnsafe (class MkUnsafe, mkUnsafe, unsafeRight)
+import Test.MkUnsafe (class MkUnsafe, mkUnsafe, unsafeJust)
 import Test.QuickCheck (class Arbitrary, arbitrary)
 import Test.QuickCheck.Gen (Gen, suchThat, vectorOf)
 import Type.Quotient (mkQuotient)
@@ -101,33 +105,38 @@ derive newtype instance decodeJsonArbQuantity :: DecodeJson ArbQuantity
 instance arbitraryArbQuantity :: Arbitrary ArbQuantity where
   arbitrary = ArbQuantity <$> mkUnsafe <<< I.fromInt <$> suchThat arbitrary (_ >= 0)
 
+newtype ArbUnsignedInt8 = ArbUnsignedInt8 (UnsignedInt D8)
+derive newtype instance showArbUnsignedInt8 :: Show ArbUnsignedInt8
+derive instance newtypeUnsignedInt8 :: Newtype ArbUnsignedInt8 _
+instance mkUnsafeUnsignedInt8 :: MkUnsafe Int ArbUnsignedInt8 where
+  mkUnsafe i = ArbUnsignedInt8 $ unsafeJust $ tryFromInt i
+
+instance arbitraryUnsignedInt8 :: Arbitrary ArbUnsignedInt8 where
+  arbitrary = mkUnsafe <$> arbitrary
+
+newtype ArbUnsignedInt64 = ArbUnsignedInt64 (UnsignedInt D64)
+derive newtype instance showArbUnsignedInt64 :: Show ArbUnsignedInt64
+derive instance newtypeUnsignedInt64 :: Newtype ArbUnsignedInt64 _
+instance mkUnsafeUnsignedInt64 :: MkUnsafe Int ArbUnsignedInt64 where
+  mkUnsafe i = ArbUnsignedInt64 $ UI.fromInt d64 i
+
+instance arbitraryUnsignedInt64 :: Arbitrary ArbUnsignedInt64 where
+  arbitrary = mkUnsafe <$> arbitrary
+
 newtype ArbSignedInt8 = ArbSignedInt8 (SignedInt D8)
 derive newtype instance showArbSignedInt8 :: Show ArbSignedInt8
 derive instance newtypeSignedInt8 :: Newtype ArbSignedInt8 _
-derive newtype instance ringArbSignedInt8 :: Ring ArbSignedInt8
-instance mkUnsafeSignedInt8 :: MkUnsafe (Tuple Boolean (Array OctChar)) ArbSignedInt8 where
-  mkUnsafe (Tuple isNegative chars) =
-    let mkIt = mkUnsafe >>> I.abs >>> mkSignedInt d8 >>> unsafeRight >>> ArbSignedInt8
-        si = mkIt chars
-    in if isNegative then negate si else si
+instance mkUnsafeSignedInt8 :: MkUnsafe Int ArbSignedInt8 where
+  mkUnsafe i = ArbSignedInt8 $ unsafeJust $ tryFromInt i
 
 instance arbitrarySignedInt8 :: Arbitrary ArbSignedInt8 where
-  arbitrary = do
-    chrs <- vectorOf 1 (arbitrary :: Gen OctChar)
-    sign <- arbitrary
-    pure $ mkUnsafe $ Tuple sign chrs
+  arbitrary = mkUnsafe <$> arbitrary
 
 newtype ArbSignedInt64 = ArbSignedInt64 (SignedInt D64)
 derive newtype instance showArbSignedInt64 :: Show ArbSignedInt64
 derive instance newtypeSignedInt64 :: Newtype ArbSignedInt64 _
-derive newtype instance ringArbSignedInt64 :: Ring ArbSignedInt64
-instance mkUnsafeSignedInt64 :: MkUnsafe (Tuple Boolean (Array OctChar)) ArbSignedInt64 where
-  mkUnsafe (Tuple isNegative chars) =
-    let mkIt = mkUnsafe >>> I.abs >>> mkSignedInt d64 >>> unsafeRight >>> ArbSignedInt64
-        si = mkIt chars
-    in if isNegative then negate si else si
+instance mkUnsafeSignedInt64 :: MkUnsafe Int ArbSignedInt64 where
+  mkUnsafe i = ArbSignedInt64 $ SI.fromInt d64 i
+
 instance arbitrarySignedInt64 :: Arbitrary ArbSignedInt64 where
-  arbitrary = do
-    chrs <- vectorOf 8 (arbitrary :: Gen OctChar)
-    sign <- arbitrary
-    pure $ mkUnsafe $ Tuple sign chrs
+  arbitrary = mkUnsafe <$> arbitrary

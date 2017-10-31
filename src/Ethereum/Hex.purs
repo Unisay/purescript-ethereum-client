@@ -10,12 +10,17 @@ import Prelude
 
 import Data.BigInt (BigInt)
 import Data.BigInt as BI
+import Data.Binary (tryFromInt)
+import Data.Binary.SignedInt (SignedInt)
+import Data.Binary.UnsignedInt (UnsignedInt)
 import Data.ByteString (ByteString, Encoding(..))
 import Data.ByteString as BS
 import Data.Ethereum.Error (type (-!>), noteErrors)
 import Data.Int (fromNumber, odd)
 import Data.Maybe (fromMaybe)
 import Data.String (Pattern(..), dropWhile, length, null, stripPrefix)
+import Data.Typelevel.Num (class Pos)
+
 
 {-
   https://github.com/ethereum/wiki/wiki/JSON-RPC#hex-value-encoding
@@ -79,3 +84,11 @@ instance fromHexInt :: FromHex Int where
   -- | Loses precision for numbers outside the range [-9007199254740992, 9007199254740992].
   fromHex s = (fromHex s)
                   <#> BI.toNumber >>= fromNumber >>> noteErrors "Failed to read HEX as Int"
+
+-- TODO: use fromStringAs radix
+
+instance fromHexSignedInt :: Pos m => FromHex (SignedInt m) where
+  fromHex = fromHex >=> tryFromInt >>> noteErrors "Failed to read HEX as SignedInt"
+
+instance fromHexUnsignedInt :: Pos m => FromHex (UnsignedInt m) where
+  fromHex = fromHex >=> tryFromInt >>> noteErrors "Failed to read HEX as UnsignedInt"

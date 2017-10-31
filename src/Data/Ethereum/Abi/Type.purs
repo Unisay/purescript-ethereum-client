@@ -1,7 +1,5 @@
 module Data.Ethereum.Abi.Type
-  ( module UnsignedInt
-  , module SignedInt
-  , Address
+  ( Address
   , Bytes
   , mkBytes
   , UnsignedFixed
@@ -17,15 +15,14 @@ module Data.Ethereum.Abi.Type
   ) where
 
 import Prelude
-import Data.ByteString as B
+
 import Data.Array as A
+import Data.Binary.SignedInt (SignedInt)
+import Data.Binary.UnsignedInt (UnsignedInt)
 import Data.ByteString (ByteString)
+import Data.ByteString as B
 import Data.Ethereum.Abi.Class (class AbiType)
 import Data.Ethereum.Abi.Type.Class (class Dividend8)
-import Data.Ethereum.Abi.Type.SignedInt as SignedInt
-import Data.Ethereum.Abi.Type.SignedInt (SignedInt)
-import Data.Ethereum.Abi.Type.UnsignedInt as UnsignedInt
-import Data.Ethereum.Abi.Type.UnsignedInt (UnsignedInt)
 import Data.Maybe (Maybe(..))
 import Data.Typelevel.Num (class LtEq, class Pos, type (:*), D0, D1, D19, D2, D24, D3, D6, D8, D80, toInt)
 
