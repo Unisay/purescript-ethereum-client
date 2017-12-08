@@ -27,8 +27,7 @@
     "purescript-typelevel": "^3.0.0",
     "purescript-unicode": "^3.0.1",
     "purescript-validation": "^3.1.0",
-    "purescript-binary": "^0.1.0",
-    "purescript-binary-integers": "^0.0.3"
+    "purescript-binary": "^0.2.6"
   },
   "devDependencies": {
     "purescript-psci-support": "^3.0.0",

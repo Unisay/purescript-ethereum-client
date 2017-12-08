@@ -2,25 +2,35 @@ module Data.Ethereum.Abi.Type.Property where
 
 import Prelude
 
-import Data.Either (either)
-import Data.Ethereum.Abi.Class (class AbiType, enc)
+import Data.Either (Either(Right))
+import Data.Ethereum.Abi.Class (class AbiType, dec, enc)
 import Data.String as S
-import Ethereum (class FromHex, fromHex)
-import Test.QuickCheck (Result(..), (<?>), (===))
-
+import Test.QuickCheck (Result, (<?>))  
 
 propTypeEncMultiple32b :: ∀ a. AbiType a => Show a => a -> Result
 propTypeEncMultiple32b t =
-  let digits = S.length (enc t) - 2
-      res = digits `mod` 2 == 0 && digits `mod` 64 == 0
-  in res <?> ("propTypeEncMultiple32b did not hold for " <> show t)
+  expected == actual
+    <?> "\nExpected:   " <> show expected
+    <>  "\nActual:     " <> show actual
+    <>  "\nEncoded:    " <> show encoded
+    <>  "\nStripped:   " <> show stripped
+    <>  "\n# of chars: " <> show chars
+    <>  "\nt:          " <> show t
+  where
+    expected = 0
+    actual = bytes `mod` 32
+    bytes = chars `div` 2
+    chars = S.length stripped
+    stripped = S.drop 2 encoded
+    encoded = enc t
 
-propDecodableEnc :: ∀ a.
-                    AbiType a =>
-                    Eq a =>
-                    Show a =>
-                    FromHex a =>
-                    a -> Result
-propDecodableEnc a = either (show >>> Failed) (const Success) do
-  decoded <- fromHex (enc a)
-  pure $ a === decoded
+propTypeEncIsDecodable :: ∀ a. AbiType a => Eq a => Show a => a -> Result
+propTypeEncIsDecodable a =
+  expected == actual
+    <?> "\nExpected:   " <> show expected
+    <>  "\nActual:     " <> show actual
+    <>  "\nEncoded:    " <> show encoded
+  where
+    expected = Right a
+    actual = dec encoded
+    encoded = enc a

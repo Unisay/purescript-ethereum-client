@@ -10,16 +10,16 @@ import Prelude
 
 import Data.BigInt (BigInt)
 import Data.BigInt as BI
-import Data.Binary (tryFromInt)
+import Data.Binary.BaseN (Radix(..), fromStringAs)
 import Data.Binary.SignedInt (SignedInt)
 import Data.Binary.UnsignedInt (UnsignedInt)
-import Data.ByteString (ByteString, Encoding(..))
+import Data.ByteString (ByteString)
 import Data.ByteString as BS
 import Data.Ethereum.Error (type (-!>), noteErrors)
 import Data.Int (fromNumber, odd)
 import Data.Maybe (fromMaybe)
 import Data.String (Pattern(..), dropWhile, length, null, stripPrefix)
-import Data.Typelevel.Num (class Pos)
+import Data.Typelevel.Num (class Gt, class Pos, D2)
 
 
 {-
@@ -54,7 +54,7 @@ class ToHex a where
   toHex :: a -> String
 
 instance byteStringToHex :: ToHex ByteString where
-  toHex bs = "0x" <> BS.toString bs Hex
+  toHex bs = "0x" <> BS.toString bs BS.Hex
 
 instance toHexBigInt :: ToHex BigInt where
   toHex = prefix <<< checkEmpty <<< trim <<< makeRaw
@@ -73,7 +73,7 @@ instance fromHexByteString :: FromHex ByteString where
   fromHex s =
     let noPrefix = stripHexPrefix s
         padded = if odd $ length noPrefix then "0" <> noPrefix else noPrefix
-    in noteErrors "Failed to read hexadecimal string as ByteString" $ BS.fromString padded Hex
+    in noteErrors "Failed to read hexadecimal string as ByteString" $ BS.fromString padded BS.Hex
 
 instance fromHexBigInt :: FromHex BigInt where
   fromHex s =
@@ -85,10 +85,9 @@ instance fromHexInt :: FromHex Int where
   fromHex s = (fromHex s)
                   <#> BI.toNumber >>= fromNumber >>> noteErrors "Failed to read HEX as Int"
 
--- TODO: use fromStringAs radix
 
-instance fromHexSignedInt :: Pos m => FromHex (SignedInt m) where
-  fromHex = fromHex >=> tryFromInt >>> noteErrors "Failed to read HEX as SignedInt"
+instance fromHexSignedInt :: (Pos m, Gt m D2) => FromHex (SignedInt m) where
+  fromHex = fromStringAs Hex >>> noteErrors "Failed to read HEX as SignedInt"
 
 instance fromHexUnsignedInt :: Pos m => FromHex (UnsignedInt m) where
-  fromHex = fromHex >=> tryFromInt >>> noteErrors "Failed to read HEX as UnsignedInt"
+  fromHex = fromStringAs Hex >>> noteErrors "Failed to read HEX as UnsignedInt"

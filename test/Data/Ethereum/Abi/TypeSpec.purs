@@ -6,18 +6,28 @@ import Control.Monad.Eff.Random (RANDOM)
 import Data.ByteString (ByteString)
 import Data.ByteString as B
 import Data.Ethereum.Abi.Type (mkBytes)
+import Data.Ethereum.Abi.Type.Property (propTypeEncMultiple32b, propTypeEncIsDecodable)
 import Data.Ethereum.Abi.Type.SignedInt.Spec as SignedInt
 import Data.Ethereum.Abi.Type.UnsignedInt.Spec as UnsignedInt
 import Data.Maybe (isJust, isNothing)
 import Data.Typelevel.Num (d16, d8)
+import Test.QuickCheck (Result)
 import Test.Unit (TestSuite, suite, test)
 import Test.Unit.QuickCheck (quickCheck)
 
 spec :: ∀ e. TestSuite (random :: RANDOM | e)
 spec = do
   suite "Abi Types" do
-    test "mkBytes D8"         $ quickCheck propBytes8
-    test "mkBytes D16"        $ quickCheck propBytes16
+    test "encoded Boolean is a correct hex encoding" $
+      quickCheck $ propTypeEncMultiple32b :: Boolean -> Result
+    test "encoded Boolean is multiple of 32 bits" $
+      quickCheck $ propTypeEncMultiple32b :: Boolean -> Result
+    test "encoded Boolean is decodable" $
+      quickCheck $ propTypeEncIsDecodable :: Boolean -> Result
+    test "mkBytes D8" $
+      quickCheck propBytes8
+    test "mkBytes D16" $
+      quickCheck propBytes16
   SignedInt.spec
   UnsignedInt.spec
 

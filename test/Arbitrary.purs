@@ -8,7 +8,6 @@ import Data.Argonaut.Encode (class EncodeJson)
 import Data.BaseChar (OctChar)
 import Data.BigInt (BigInt)
 import Data.BigInt as I
-import Data.Binary (tryFromInt)
 import Data.Binary.SignedInt (SignedInt)
 import Data.Binary.SignedInt as SI
 import Data.Binary.UnsignedInt (UnsignedInt)
@@ -17,7 +16,7 @@ import Data.ByteString (Encoding(..), Octet)
 import Data.ByteString as B
 import Data.Ethereum (Abi(..), Address, Bytes(..), Code(..), Quantity, TxHash)
 import Data.Newtype (class Newtype, unwrap)
-import Data.Typelevel.Num (D8, d64)
+import Data.Typelevel.Num (D8, d32, d64)
 import Data.Typelevel.Num.Aliases (D64)
 import Ethereum.Hex (class ToHex, class FromHex)
 import Test.MkUnsafe (class MkUnsafe, mkUnsafe, unsafeJust)
@@ -109,10 +108,10 @@ newtype ArbUnsignedInt8 = ArbUnsignedInt8 (UnsignedInt D8)
 derive newtype instance showArbUnsignedInt8 :: Show ArbUnsignedInt8
 derive instance newtypeUnsignedInt8 :: Newtype ArbUnsignedInt8 _
 instance mkUnsafeUnsignedInt8 :: MkUnsafe Int ArbUnsignedInt8 where
-  mkUnsafe i = ArbUnsignedInt8 $ unsafeJust $ tryFromInt i
+  mkUnsafe i = ArbUnsignedInt8 $ unsafeJust $ UI.tryAsBits $ UI.fromInt d32 i
 
 instance arbitraryUnsignedInt8 :: Arbitrary ArbUnsignedInt8 where
-  arbitrary = mkUnsafe <$> arbitrary
+  arbitrary = mkUnsafe <$> suchThat arbitrary \i -> i >= 0 && i < 255
 
 newtype ArbUnsignedInt64 = ArbUnsignedInt64 (UnsignedInt D64)
 derive newtype instance showArbUnsignedInt64 :: Show ArbUnsignedInt64
@@ -127,10 +126,10 @@ newtype ArbSignedInt8 = ArbSignedInt8 (SignedInt D8)
 derive newtype instance showArbSignedInt8 :: Show ArbSignedInt8
 derive instance newtypeSignedInt8 :: Newtype ArbSignedInt8 _
 instance mkUnsafeSignedInt8 :: MkUnsafe Int ArbSignedInt8 where
-  mkUnsafe i = ArbSignedInt8 $ unsafeJust $ tryFromInt i
+  mkUnsafe i = ArbSignedInt8 $ unsafeJust $ SI.tryAsBits $ SI.fromInt d32 i
 
 instance arbitrarySignedInt8 :: Arbitrary ArbSignedInt8 where
-  arbitrary = mkUnsafe <$> arbitrary
+  arbitrary = mkUnsafe <$> suchThat arbitrary \i -> i >= (-128) && i < 128
 
 newtype ArbSignedInt64 = ArbSignedInt64 (SignedInt D64)
 derive newtype instance showArbSignedInt64 :: Show ArbSignedInt64

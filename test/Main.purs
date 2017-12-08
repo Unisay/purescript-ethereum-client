@@ -23,7 +23,7 @@ main :: ∀ e. Eff ( console    :: CONSOLE
                  | e
                  ) Unit
 main = runTest do
-  Api.spec
-  Json.spec
-  Hex.spec
+  -- Api.spec
+  -- Json.spec
+  -- Hex.spec
   Type.spec

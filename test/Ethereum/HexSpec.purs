@@ -12,7 +12,7 @@ import Data.Ethereum (Address)
 import Data.String.Utils (unsafeRepeat)
 import Data.Traversable (traverse)
 import Ethereum.Hex (fromHex, toHex)
-import Property (isHexBytesEncoding, isHex)
+import Property (isHexEncoding, isHex)
 import Test.MkUnsafe (mkUnsafe)
 import Test.QuickCheck (Result(Success, Failed))
 import Test.Unit (TestSuite, suite, test)
@@ -28,7 +28,7 @@ spec = do
     test "toHex ByteString" $
       "0x02cafebabe" `equal` toHex byteString
     test "toHex ByteString produces a correct hex encoding" $
-      quickCheck ((toHex >>> isHexBytesEncoding) :: ByteString -> Result)
+      quickCheck ((toHex >>> isHexEncoding) :: ByteString -> Result)
     test "toHex BigInt" $
       "0xe40b5" `equal` toHex bigInt
     test "toHex BigInt produces a correct hexadecimal quantity encoding" $
@@ -38,7 +38,7 @@ spec = do
           address = mkUnsafe addressStr :: Address
       ("0x" <> addressStr) `equal` toHex address
     test "toHex Address produces a correct hex encoding" $
-      quickCheck ((toHex >>> isHexBytesEncoding) :: ArbAddress -> Result)
+      quickCheck ((toHex >>> isHexEncoding) :: ArbAddress -> Result)
 
   suite "From Hex" do
     test "fromHex ByteString" do

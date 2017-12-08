@@ -36,10 +36,10 @@ nonEmpty s = (not null) s <?> "Is empty"
 hasEvenLength :: String -> Result
 hasEvenLength s = even (length s) <?> "Has odd length"
 
-isHexBytesEncoding :: String -> Result
-isHexBytesEncoding = hasHexPrefix
-                 <&> hasEvenLength
-                 <&> stripHexPrefix >>> hasOnlyHexDigits
+isHexEncoding :: String -> Result
+isHexEncoding = hasHexPrefix
+            <&> hasEvenLength
+            <&> stripHexPrefix >>> hasOnlyHexDigits
 
 isHex :: String -> Result
 isHex = hasHexPrefix

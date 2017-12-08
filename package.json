@@ -29,6 +29,7 @@
   "homepage": "https://github.com/Unisay/purescript-ethereum-client#readme",
   "dependencies": {
     "big-integer": "^1.6.25",
+    "ethabi-js": "0.0.59",
     "xhr2": "^0.1.4"
   }
 }
